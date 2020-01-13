@@ -212,6 +212,7 @@ class FitsReadingModule(ReadingModule):
                                check=self.m_check)
 
             set_extra_attr(fits_file=fits_file,
+                           header=header,
                            nimages=nimages,
                            config_port=self._m_config_port,
                            image_out_port=self.m_image_out_port,

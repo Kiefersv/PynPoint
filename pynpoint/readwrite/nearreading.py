@@ -437,6 +437,7 @@ class NearReadingModule(ReadingModule):
 
                 # set the remaining attributes
                 set_extra_attr(fits_file=filename,
+                                header=header,
                                nimages=im_shape[0]//2,
                                config_port=self._m_config_port,
                                image_out_port=port,
