@@ -9,9 +9,13 @@ import numpy as np
 from scipy.ndimage import rotate
 from sklearn.decomposition import PCA
 
+from pynpoint.util.image import scale_image
+
+
 
 def pca_psf_subtraction(images: np.ndarray,
                         angles: np.ndarray,
+                        scales: np.ndarray,
                         pca_number: int,
                         pca_sklearn: PCA = None,
                         im_shape: Tuple[int, int, int] = None,
@@ -27,6 +31,8 @@ def pca_psf_subtraction(images: np.ndarray,
         `pca_sklearn` is not set to None.
     parang : numpy.ndarray
         Derotation angles (deg).
+    scales : numpy.ndarray
+        Rescaling values
     pca_number : int
         Number of principal components used for the PSF model.
     pca_sklearn : sklearn.decomposition.pca.PCA, None
@@ -87,9 +93,34 @@ def pca_psf_subtraction(images: np.ndarray,
     # reshape to the original image size
     residuals = residuals.reshape(im_shape)
 
+    # back scale images
+    scal_cor = np.zeros(residuals.shape)
+
+    if scales[0] is not None:
+        for i, _ in enumerate(scales):
+
+            # rescaling the images
+            swaps = scale_image(residuals[i, ], 1/scales[i], 1/scales[i])
+
+            dadu = len(swaps[:, 0])
+            ladu = len(scal_cor[0, :, 0])
+            f_1 = (ladu - dadu)//2
+            f_2 = (ladu + dadu)//2
+
+            scal_cor[i, f_1:f_2, f_1:f_2] = swaps
+
+    else:
+        scal_cor = residuals
+
+
     # derotate the images
     res_rot = np.zeros(residuals.shape)
-    for j, item in enumerate(angles):
-        res_rot[j, ] = rotate(residuals[j, ], item, reshape=False)
 
-    return residuals, res_rot
+    if angles[0] is not None:
+        for j, item in enumerate(angles):
+            res_rot[j, ] = rotate(scal_cor[j, ], item, reshape=False)
+
+    else:
+        res_rot = scal_cor
+
+    return scal_cor, res_rot

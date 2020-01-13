@@ -8,6 +8,7 @@ from typing import Tuple
 
 import numpy as np
 
+from typing import Union
 from typeguard import typechecked
 from scipy.stats import t
 from scipy.ndimage.filters import gaussian_filter
@@ -189,7 +190,7 @@ def fake_planet(images: np.ndarray,
                 psf: np.ndarray,
                 parang: np.ndarray,
                 position: Tuple[float, float],
-                magnitude: float,
+                magnitude: Union[np.ndarray, float],
                 psf_scaling: float,
                 interpolation: str = 'spline') -> np.ndarray:
     """
@@ -223,7 +224,12 @@ def fake_planet(images: np.ndarray,
     ang = np.radians(position[1] + 90. - parang)
 
     flux_ratio = 10. ** (-magnitude / 2.5)
-    psf = psf*psf_scaling*flux_ratio
+    
+    if magnitude is np.ndarray:
+        for i, fl in enumerate(flux_ratio):
+            psf[i] = psf[i]*fl
+    else:
+        psf = psf*psf_scaling*flux_ratio
 
     x_shift = sep*np.cos(ang)
     y_shift = sep*np.sin(ang)

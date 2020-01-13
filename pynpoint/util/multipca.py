@@ -16,7 +16,8 @@ from sklearn.decomposition.pca import PCA
 from pynpoint.core.dataio import OutputPort
 from pynpoint.util.multiproc import TaskProcessor, TaskCreator, TaskWriter, TaskResult, \
                                     TaskInput, MultiprocessingCapsule, to_slice
-from pynpoint.util.psf import pca_psf_subtraction
+from pynpoint.util.sdi import postprocessor
+from pynpoint.util.ifs import i_want_to_seperate_wavelengths
 from pynpoint.util.residuals import combine_residuals
 
 
@@ -80,7 +81,8 @@ class PcaTaskProcessor(TaskProcessor):
     * Mean residuals -- requirements[0] = True
     * Median residuals -- requirements[1] = True
     * Noise-weighted residuals -- requirements[2] = True
-    * Clipped mean of the residuals -- requirements[3] = True
+    * stim residuals -- requirements[3] = True
+    * Clipped mean of the residuals -- requirements[4] = True
     """
 
     @typechecked
@@ -89,10 +91,12 @@ class PcaTaskProcessor(TaskProcessor):
                  result_queue_in: multiprocessing.JoinableQueue,
                  star_reshape: np.ndarray,
                  angles: np.ndarray,
+                 scales: np.ndarray,
                  pca_model: PCA,
                  im_shape: Tuple[int, int, int],
                  indices: np.ndarray,
-                 requirements: Tuple[bool, bool, bool, bool]) -> None:
+                 requirements: Tuple[bool, bool, bool, bool, bool],
+                 processing_type) -> None:
         """
         Parameters
         ----------
@@ -104,6 +108,8 @@ class PcaTaskProcessor(TaskProcessor):
             Reshaped (2D) stack of images.
         angles : numpy.ndarray
             Derotation angles (deg).
+        scales : numpy.ndarray
+            Rescaling values
         pca_model : sklearn.decomposition.pca.PCA
             PCA object with the basis.
         im_shape : tuple(int, int, int)
@@ -124,9 +130,11 @@ class PcaTaskProcessor(TaskProcessor):
         self.m_star_reshape = star_reshape
         self.m_pca_model = pca_model
         self.m_angles = angles
+        self.m_scales = scales
         self.m_im_shape = im_shape
         self.m_indices = indices
         self.m_requirements = requirements
+        self.m_processing_type = processing_type
 
     @typechecked
     def run_job(self,
@@ -145,40 +153,66 @@ class PcaTaskProcessor(TaskProcessor):
             Output residuals.
         """
 
-        residuals, res_rot = pca_psf_subtraction(images=self.m_star_reshape,
-                                                 angles=self.m_angles,
-                                                 pca_number=tmp_task.m_input_data,
-                                                 pca_sklearn=self.m_pca_model,
-                                                 im_shape=self.m_im_shape,
-                                                 indices=self.m_indices)
-
-        res_output = np.zeros((4, res_rot.shape[1], res_rot.shape[2]))
+        residuals, res_rot = postprocessor(images=self.m_star_reshape,
+                                           parang=self.m_angles,
+                                           scales=self.m_scales,
+                                           pca_number=tmp_task.m_input_data,
+                                           pca_sklearn=self.m_pca_model,
+                                           im_shape=self.m_im_shape,
+                                           indices=self.m_indices,
+                                           processing_type = self.m_processing_type)
+        
+        # Prepare either single or wavelength output
+        if i_want_to_seperate_wavelengths(self.m_processing_type):
+            res_output = np.zeros((5, len(list(set(self.m_scales))), res_rot.shape[1], res_rot.shape[2]))
+        else:
+            res_output = np.zeros((5, 1, res_rot.shape[1], res_rot.shape[2]))
 
         if self.m_requirements[0]:
-            res_output[0, ] = combine_residuals(method='mean', res_rot=res_rot)
+            res_output[0, ] = combine_residuals(method='mean', 
+                                                res_rot=res_rot,
+                                                lam=self.m_scales,
+                                                processing_type = self.m_processing_type)
 
         if self.m_requirements[1]:
-            res_output[1, ] = combine_residuals(method='median', res_rot=res_rot)
+            res_output[1, ] = combine_residuals(method='median', 
+                                                res_rot=res_rot,
+                                                lam=self.m_scales,
+                                                processing_type = self.m_processing_type)
 
         if self.m_requirements[2]:
             res_output[2, ] = combine_residuals(method='weighted',
                                                 res_rot=res_rot,
                                                 residuals=residuals,
-                                                angles=self.m_angles)
+                                                angles=self.m_angles,
+                                                lam=self.m_scales,
+                                                processing_type = self.m_processing_type)
 
         if self.m_requirements[3]:
-            res_output[3, ] = combine_residuals(method='clipped', res_rot=res_rot)
+            res_output[3, ] = combine_residuals(method='stim',
+                                                res_rot=res_rot,
+                                                residuals=residuals,
+                                                angles=self.m_angles,
+                                                lam=self.m_scales,
+                                                processing_type = self.m_processing_type)
+
+        if self.m_requirements[4]:
+            res_output[4, ] = combine_residuals(method='clipped', 
+                                                res_rot=res_rot,
+                                                lam=self.m_scales,
+                                                processing_type = self.m_processing_type)
 
         sys.stdout.write('.')
         sys.stdout.flush()
 
+        
         return TaskResult(res_output, tmp_task.m_job_parameter[0])
 
 
 class PcaTaskWriter(TaskWriter):
     """
     The TaskWriter of the PCA parallelization. Four different ports are used to save the
-    results of the task processors (mean, median, weighted, and clipped).
+    results of the task processors (mean, median, weighted, stim, and clipped).
     """
 
     @typechecked
@@ -187,9 +221,10 @@ class PcaTaskWriter(TaskWriter):
                  mean_out_port: Union[OutputPort, None],
                  median_out_port: Union[OutputPort, None],
                  weighted_out_port: Union[OutputPort, None],
+                 stim_out_port: Union[OutputPort, None],
                  clip_out_port: Union[OutputPort, None],
                  data_mutex_in: multiprocessing.Lock,
-                 requirements: Tuple[bool, bool, bool, bool]) -> None:
+                 requirements: Tuple[bool, bool, bool, bool, bool]) -> None:
         """
         Constructor of PcaTaskWriter.
 
@@ -203,6 +238,8 @@ class PcaTaskWriter(TaskWriter):
             Output port with the median residuals. Not used if set to None.
         weighted_out_port : pynpoint.core.dataio.OutputPort
             Output port with the noise-weighted residuals. Not used if set to None.
+        stim_out_port : pynpoint.core.dataio.OutputPort
+            Output port with the stim residuals. Not used if set to None.
         clip_out_port : pynpoint.core.dataio.OutputPort
             Output port with the clipped mean residuals. Not used if set to None.
         data_mutex_in : multiprocessing.synchronize.Lock
@@ -221,6 +258,7 @@ class PcaTaskWriter(TaskWriter):
         self.m_mean_out_port = mean_out_port
         self.m_median_out_port = median_out_port
         self.m_weighted_out_port = weighted_out_port
+        self.m_stim_out_port = stim_out_port
         self.m_clip_out_port = clip_out_port
         self.m_requirements = requirements
 
@@ -247,25 +285,32 @@ class PcaTaskWriter(TaskWriter):
 
             with self.m_data_mutex:
                 res_slice = to_slice(next_result.m_position)
+                pca_nr = next_result.m_position[0][0]
+                ll = len(next_result.m_data_array[0, :, 0, 0])
 
                 if self.m_requirements[0]:
                     self.m_mean_out_port._check_status_and_activate()
-                    self.m_mean_out_port[res_slice] = next_result.m_data_array[0, :, :]
+                    self.m_mean_out_port[pca_nr*ll : (pca_nr+1)*ll , :, :] = next_result.m_data_array[0, :, :, :]
                     self.m_mean_out_port.close_port()
 
                 if self.m_requirements[1]:
                     self.m_median_out_port._check_status_and_activate()
-                    self.m_median_out_port[res_slice] = next_result.m_data_array[1, :, :]
+                    self.m_median_out_port[pca_nr*ll : (pca_nr+1)*ll , :, :] = next_result.m_data_array[1, :, :, :]
                     self.m_median_out_port.close_port()
 
                 if self.m_requirements[2]:
                     self.m_weighted_out_port._check_status_and_activate()
-                    self.m_weighted_out_port[res_slice] = next_result.m_data_array[2, :, :]
+                    self.m_weighted_out_port[pca_nr*ll : (pca_nr+1)*ll , :, :] = next_result.m_data_array[2, :, :, :]
                     self.m_weighted_out_port.close_port()
 
                 if self.m_requirements[3]:
+                    self.m_stim_out_port._check_status_and_activate()
+                    self.m_stim_out_port[pca_nr*ll : (pca_nr+1)*ll , :, :] = next_result.m_data_array[3, :, :, :]
+                    self.m_stim_out_port.close_port()
+
+                if self.m_requirements[4]:
                     self.m_clip_out_port._check_status_and_activate()
-                    self.m_clip_out_port[res_slice] = next_result.m_data_array[3, :, :]
+                    self.m_clip_out_port[pca_nr*ll : (pca_nr+1)*ll , :, :] = next_result.m_data_array[4, :, :, :]
                     self.m_clip_out_port.close_port()
 
             self.m_result_queue.task_done()
@@ -281,14 +326,17 @@ class PcaMultiprocessingCapsule(MultiprocessingCapsule):
                  mean_out_port: Union[OutputPort, None],
                  median_out_port: Union[OutputPort, None],
                  weighted_out_port: Union[OutputPort, None],
+                 stim_out_port: Union[OutputPort, None],
                  clip_out_port: Union[OutputPort, None],
                  num_proc: np.int64,
                  pca_numbers: np.ndarray,
                  pca_model: PCA,
                  star_reshape: np.ndarray,
                  angles: np.ndarray,
+                 scales: np.ndarray,
                  im_shape: Tuple[int, int, int],
-                 indices: np.ndarray) -> None:
+                 indices: np.ndarray,
+                 processing_type: str) -> None:
         """
         Constructor of PcaMultiprocessingCapsule.
 
@@ -300,6 +348,8 @@ class PcaMultiprocessingCapsule(MultiprocessingCapsule):
             Output port for the median residuals.
         weighted_out_port : pynpoint.core.dataio.OutputPort
             Output port for the noise-weighted residuals.
+        stim_out_port : pynpoint.core.dataio.OutputPort
+            Output port for the stim residuals.
         clip_out_port : pynpoint.core.dataio.OutputPort
             Output port for the mean clipped residuals.
         num_proc : int
@@ -312,6 +362,8 @@ class PcaMultiprocessingCapsule(MultiprocessingCapsule):
             Reshaped (2D) input images.
         angles : numpy.ndarray
             Derotation angles (deg).
+        scales : numpy.ndarray
+            Rescaling values
         im_shape : tuple(int, int, int)
             Original shape of the input images.
         indices : numpy.ndarray
@@ -326,15 +378,18 @@ class PcaMultiprocessingCapsule(MultiprocessingCapsule):
         self.m_mean_out_port = mean_out_port
         self.m_median_out_port = median_out_port
         self.m_weighted_out_port = weighted_out_port
+        self.m_stim_out_port = stim_out_port
         self.m_clip_out_port = clip_out_port
         self.m_pca_numbers = pca_numbers
         self.m_pca_model = pca_model
         self.m_star_reshape = star_reshape
         self.m_angles = angles
+        self.m_scales = scales
         self.m_im_shape = im_shape
         self.m_indices = indices
+        self.m_processing_type = processing_type
 
-        self.m_requirements = [False, False, False, False]
+        self.m_requirements = [False, False, False, False, False]
 
         if self.m_mean_out_port is not None:
             self.m_requirements[0] = True
@@ -345,8 +400,11 @@ class PcaMultiprocessingCapsule(MultiprocessingCapsule):
         if self.m_weighted_out_port is not None:
             self.m_requirements[2] = True
 
-        if self.m_clip_out_port is not None:
+        if self.m_stim_out_port is not None:
             self.m_requirements[3] = True
+
+        if self.m_clip_out_port is not None:
+            self.m_requirements[4] = True
 
         self.m_requirements = tuple(self.m_requirements)
 
@@ -373,6 +431,7 @@ class PcaMultiprocessingCapsule(MultiprocessingCapsule):
                              self.m_mean_out_port,
                              self.m_median_out_port,
                              self.m_weighted_out_port,
+                             self.m_stim_out_port,
                              self.m_clip_out_port,
                              self.m_data_mutex,
                              self.m_requirements)
@@ -417,9 +476,11 @@ class PcaMultiprocessingCapsule(MultiprocessingCapsule):
                                                self.m_result_queue,
                                                self.m_star_reshape,
                                                self.m_angles,
+                                               self.m_scales,
                                                self.m_pca_model,
                                                self.m_im_shape,
                                                self.m_indices,
-                                               self.m_requirements))
+                                               self.m_requirements,
+                                               self.m_processing_type))
 
         return processors

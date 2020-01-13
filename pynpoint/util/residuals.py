@@ -7,9 +7,88 @@ import numpy as np
 from typeguard import typechecked
 from scipy.ndimage import rotate
 
+from pynpoint.util.ifs import i_want_to_seperate_wavelengths
+
+
+
 
 @typechecked
 def combine_residuals(method: str,
+                      res_rot: np.ndarray,
+                      residuals: np.ndarray = None,
+                      angles: np.ndarray = None,
+                      lam: np.ndarray = None,
+                      processing_type: str = 'Cnan'):
+    """
+    Wavelength wraper for the combine_residual function. Produces an arraay with either 1
+    or number of wavelneghts sized array.
+    
+    Parameters
+    ----------
+    method : str
+        Method used for combining the residuals ('mean', 'median', 'weighted', or 'clipped').
+    res_rot : numpy.ndarray
+        Derotated residuals of the PSF subtraction (3D).
+    residuals : numpy.ndarray, None
+        Non-derotated residuals of the PSF subtraction (3D). Only required for the noise-weighted
+        residuals and stim.
+    angles : numpy.ndarray, None
+        Derotation angles (deg). Only required for the noise-weighted residuals and stim.
+    lam : numpy.ndarray
+        Wavelength information of res_rot. Must have same dimension
+    processing_type : str
+        type of processing, if 'W...' an image per wavelength is produced, if 'C...' one avareged
+        image is created
+
+    Returns
+    -------
+    numpy.ndarray
+        Combined residuals (3D). Either an image per wavelength or one averaged image.
+    
+    """
+    
+    # Set up
+    if lam is None:
+        lam = np.ones(len(res_rot))
+    
+    lam_splits = np.sort(list(set(lam)))
+    output = np.zeros_like(res_rot[:len(lam_splits),])
+    
+    # combine per wavelength
+    for kk, lam_k in enumerate(lam_splits):
+        
+        # mask wavelenght
+        mask_k = (lam == lam_k)
+        
+        if residuals is not None: resi = residuals[mask_k]
+        else: resi = residuals 
+        if angles is not None: angi = angles[mask_k]
+        else: angi = angles
+        
+        # combine per wavlenght
+        output[kk,] = _residuals(method=method, res_rot=res_rot[mask_k], residuals=resi, angles=angi)
+    
+    # if desiered create one final image
+    if not i_want_to_seperate_wavelengths(processing_type) and len(lam_splits) != 1:
+        if method == 'stim':
+            output = _residuals(method='median', res_rot=np.asarray(output), residuals=residuals, angles=angles)
+        else:
+            output = _residuals(method=method, res_rot=np.asarray(output), residuals=residuals, angles=angles)
+        
+        
+    return output
+
+
+
+
+
+
+
+
+
+
+@typechecked
+def _residuals(method: str,
                       res_rot: np.ndarray,
                       residuals: np.ndarray = None,
                       angles: np.ndarray = None) -> np.ndarray:
@@ -24,9 +103,9 @@ def combine_residuals(method: str,
         Derotated residuals of the PSF subtraction (3D).
     residuals : numpy.ndarray, None
         Non-derotated residuals of the PSF subtraction (3D). Only required for the noise-weighted
-        residuals.
+        residuals and stim.
     angles : numpy.ndarray, None
-        Derotation angles (deg). Only required for the noise-weighted residuals.
+        Derotation angles (deg). Only required for the noise-weighted residuals and stim.
 
     Returns
     -------
@@ -86,5 +165,22 @@ def combine_residuals(method: str,
                     part2 = part1.compress((part1 > (-1.0)*3.0*np.sqrt(no_mean.var())).flat)
 
                     stack[i, j] = temp.mean() + part2.mean()
+                    
+    elif method == 'stim':
+        
+        # calculate std and mean
+        im_std = np.std(res_rot, axis=0)   
+        stack = np.median(res_rot, axis=0)
+        
+        # find all non zero std
+        mask_sigm = (im_std == 0)
+        notmask_sigm = (im_std != 0)
+        
+        # Creat STIM map
+        stack[mask_sigm] = 0
+        stack[notmask_sigm] /= im_std[notmask_sigm]
+        
+        
+        
 
     return stack[np.newaxis, ...]

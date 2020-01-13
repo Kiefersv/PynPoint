@@ -2,6 +2,7 @@
 Pipeline modules for PSF subtraction.
 """
 
+import sys
 import time
 import math
 import warnings
@@ -18,8 +19,15 @@ from typeguard import typechecked
 from pynpoint.core.processing import ProcessingModule
 from pynpoint.util.module import progress
 from pynpoint.util.multipca import PcaMultiprocessingCapsule
-from pynpoint.util.psf import pca_psf_subtraction
 from pynpoint.util.residuals import combine_residuals
+from pynpoint.util.image import scale_image
+from pynpoint.util.ifs import sdi_scaling, scaling_calculation, \
+                              i_want_to_seperate_wavelengths
+from pynpoint.util.sdi import postprocessor
+
+
+
+
 
 
 class PcaPsfSubtractionModule(ProcessingModule):
@@ -40,12 +48,14 @@ class PcaPsfSubtractionModule(ProcessingModule):
                  res_mean_tag: str = None,
                  res_median_tag: str = None,
                  res_weighted_tag: str = None,
+                 res_stim_tag: str = None,
                  res_rot_mean_clip_tag: str = None,
                  res_arr_out_tag: str = None,
                  basis_out_tag: str = None,
                  pca_numbers: Union[range, List[int], np.ndarray] = range(1, 21),
                  extra_rot: float = 0.,
-                 subtract_mean: bool = True) -> None:
+                 subtract_mean: bool = True,
+                 processing_type: str = 'Cadi') -> None:
         """
         Parameters
         ----------
@@ -63,6 +73,9 @@ class PcaPsfSubtractionModule(ProcessingModule):
             to None.
         res_weighted_tag : str, None
             Tag of the database entry with the noise-weighted residuals (see Bottom et al. 2017).
+            Not calculated if set to None.
+        res_stim_tag : str, None
+            Tag of the database entry with the stim residuals (see Pairet et al. 2010).
             Not calculated if set to None.
         res_rot_mean_clip_tag : str, None
             Tag of the database entry of the clipped mean residuals. Not calculated if set to
@@ -93,6 +106,7 @@ class PcaPsfSubtractionModule(ProcessingModule):
         self.m_components = np.sort(np.atleast_1d(pca_numbers))
         self.m_extra_rot = extra_rot
         self.m_subtract_mean = subtract_mean
+        self.m_processing_type = processing_type
 
         self.m_pca = PCA(n_components=np.amax(self.m_components), svd_solver='arpack')
 
@@ -113,6 +127,11 @@ class PcaPsfSubtractionModule(ProcessingModule):
             self.m_res_weighted_out_port = None
         else:
             self.m_res_weighted_out_port = self.add_output_port(res_weighted_tag)
+
+        if res_stim_tag is None:
+            self.m_res_stim_out_port = None
+        else:
+            self.m_res_stim_out_port = self.add_output_port(res_stim_tag)
 
         if res_rot_mean_clip_tag is None:
             self.m_res_rot_mean_clip_out_port = None
@@ -141,7 +160,20 @@ class PcaPsfSubtractionModule(ProcessingModule):
         cpu = self._m_config_port.get_attribute('CPU')
         angles = -1.*self.m_star_in_port.get_attribute('PARANG') + self.m_extra_rot
 
-        tmp_output = np.zeros((len(self.m_components), im_shape[1], im_shape[2]))
+        pixscale = self.m_star_in_port.get_attribute('PIXSCALE')
+        lam = self.m_star_in_port.get_attribute('LAMBDA')
+
+        if lam is None:
+            lam = np.ones_like(angles)
+
+        lllam = len(list(set(lam)))
+        scales = scaling_calculation(pixscale, lam)
+
+        if i_want_to_seperate_wavelengths(self.m_processing_type):
+            tmp_output = np.zeros((len(self.m_components)*lllam, im_shape[1], im_shape[2]))
+        else:
+            tmp_output = np.zeros((len(self.m_components), im_shape[1], im_shape[2]))
+
 
         if self.m_res_mean_out_port is not None:
             self.m_res_mean_out_port.set_all(tmp_output, keep_attributes=False)
@@ -151,6 +183,9 @@ class PcaPsfSubtractionModule(ProcessingModule):
 
         if self.m_res_weighted_out_port is not None:
             self.m_res_weighted_out_port.set_all(tmp_output, keep_attributes=False)
+
+        if self.m_res_stim_out_port is not None:
+            self.m_res_stim_out_port.set_all(tmp_output, keep_attributes=False)
 
         if self.m_res_rot_mean_clip_out_port is not None:
             self.m_res_rot_mean_clip_out_port.set_all(tmp_output, keep_attributes=False)
@@ -167,6 +202,9 @@ class PcaPsfSubtractionModule(ProcessingModule):
         if self.m_res_weighted_out_port is not None:
             self.m_res_weighted_out_port.close_port()
 
+        if self.m_res_stim_out_port is not None:
+            self.m_res_stim_out_port.close_port()
+
         if self.m_res_rot_mean_clip_out_port is not None:
             self.m_res_rot_mean_clip_out_port.close_port()
 
@@ -180,14 +218,17 @@ class PcaPsfSubtractionModule(ProcessingModule):
         capsule = PcaMultiprocessingCapsule(self.m_res_mean_out_port,
                                             self.m_res_median_out_port,
                                             self.m_res_weighted_out_port,
+                                            self.m_res_stim_out_port,
                                             self.m_res_rot_mean_clip_out_port,
                                             cpu,
                                             deepcopy(self.m_components),
                                             deepcopy(self.m_pca),
                                             deepcopy(star_reshape),
                                             deepcopy(angles),
+                                            scales,
                                             im_shape,
-                                            indices)
+                                            indices,
+                                            self.m_processing_type)
 
         capsule.run()
 
@@ -204,29 +245,46 @@ class PcaPsfSubtractionModule(ProcessingModule):
 
             parang = -1.*self.m_star_in_port.get_attribute('PARANG') + self.m_extra_rot
 
-            residuals, res_rot = pca_psf_subtraction(images=star_reshape,
-                                                     angles=parang,
-                                                     pca_number=pca_number,
-                                                     pca_sklearn=self.m_pca,
-                                                     im_shape=im_shape,
-                                                     indices=indices)
+            pixscale = self.m_star_in_port.get_attribute('PIXSCALE')
+            lam = self.m_star_in_port.get_attribute('LAMBDA')
+
+
+            if lam is None:
+                lam = np.ones_like(parang)
+
+            scales = scaling_calculation(pixscale, lam)
+
+            residuals, res_rot = postprocessor(images=star_reshape,
+                                               parang=parang,
+                                               scales=scales,
+                                               pca_number=pca_number,
+                                               pca_sklearn=self.m_pca,
+                                               im_shape=im_shape,
+                                               indices=indices,
+                                               processing_type=self.m_processing_type)
 
             hist = f'max PC number = {np.amax(self.m_components)}'
 
             # 1.) derotated residuals
             if self.m_res_arr_out_ports is not None:
-                self.m_res_arr_out_ports[pca_number].set_all(res_rot)
+                self.m_res_arr_out_ports[pca_number].set_all(residuals)
                 self.m_res_arr_out_ports[pca_number].copy_attributes(self.m_star_in_port)
                 self.m_res_arr_out_ports[pca_number].add_history('PcaPsfSubtractionModule', hist)
 
             # 2.) mean residuals
             if self.m_res_mean_out_port is not None:
-                stack = combine_residuals(method='mean', res_rot=res_rot)
+                stack = combine_residuals(method='mean',
+                                          res_rot=res_rot,
+                                          lam=lam,
+                                          processing_type=self.m_processing_type)
                 self.m_res_mean_out_port.append(stack, data_dim=3)
 
             # 3.) median residuals
             if self.m_res_median_out_port is not None:
-                stack = combine_residuals(method='median', res_rot=res_rot)
+                stack = combine_residuals(method='median',
+                                          res_rot=res_rot,
+                                          lam=lam,
+                                          processing_type=self.m_processing_type)
                 self.m_res_median_out_port.append(stack, data_dim=3)
 
             # 4.) noise-weighted residuals
@@ -234,14 +292,36 @@ class PcaPsfSubtractionModule(ProcessingModule):
                 stack = combine_residuals(method='weighted',
                                           res_rot=res_rot,
                                           residuals=residuals,
-                                          angles=parang)
+                                          angles=parang,
+                                          lam=lam,
+                                          processing_type=self.m_processing_type)
 
                 self.m_res_weighted_out_port.append(stack, data_dim=3)
 
-            # 5.) clipped mean residuals
+            # 5.) stim residuals
+            if self.m_res_stim_out_port is not None:
+                stack = combine_residuals(method='stim',
+                                          res_rot=res_rot,
+                                          residuals=residuals,
+                                          angles=parang,
+                                          lam=lam,
+                                          processing_type=self.m_processing_type)
+
+                self.m_res_stim_out_port.append(stack, data_dim=3)
+
+            # 6.) clipped mean residuals
             if self.m_res_rot_mean_clip_out_port is not None:
-                stack = combine_residuals(method='clipped', res_rot=res_rot)
+                stack = combine_residuals(method='clipped',
+                                          res_rot=res_rot,
+                                          angles=parang,
+                                          lam=lam,
+                                          processing_type=self.m_processing_type)
+                
                 self.m_res_rot_mean_clip_out_port.append(stack, data_dim=3)
+
+
+        sys.stdout.write('Creating residuals... [DONE]\n')
+        sys.stdout.flush()
 
     def _clear_output_ports(self):
         if self.m_res_mean_out_port is not None:
@@ -255,6 +335,10 @@ class PcaPsfSubtractionModule(ProcessingModule):
         if self.m_res_weighted_out_port is not None:
             self.m_res_weighted_out_port.del_all_data()
             self.m_res_weighted_out_port.del_all_attributes()
+
+        if self.m_res_stim_out_port is not None:
+            self.m_res_stim_out_port.del_all_data()
+            self.m_res_stim_out_port.del_all_attributes()
 
         if self.m_res_rot_mean_clip_out_port is not None:
             self.m_res_rot_mean_clip_out_port.del_all_data()
@@ -324,7 +408,9 @@ class PcaPsfSubtractionModule(ProcessingModule):
         ref_reshape -= mean_ref
 
         # create the PCA basis
-        print('Constructing PSF model...', end='')
+        sys.stdout.write('Constructing PSF model...')
+        sys.stdout.flush()
+
         self.m_pca.fit(ref_reshape)
 
         # add mean of reference array as 1st PC and orthogonalize it with respect to the PCA basis
@@ -336,7 +422,8 @@ class PcaPsfSubtractionModule(ProcessingModule):
 
             self.m_pca.components_ = q_ortho.T
 
-        print(' [DONE]')
+        sys.stdout.write(' [DONE]\n')
+        sys.stdout.flush()
 
         if self.m_basis_out_port is not None:
             pc_size = self.m_pca.components_.shape[0]
@@ -351,9 +438,13 @@ class PcaPsfSubtractionModule(ProcessingModule):
             self._run_single_processing(star_reshape, im_shape, indices)
 
         else:
-            print('Creating residuals', end='')
+            sys.stdout.write('Creating residuals')
+            sys.stdout.flush()
+
             self._run_multi_processing(star_reshape, im_shape, indices)
-            print(' [DONE]')
+
+            sys.stdout.write(' [DONE]\n')
+            sys.stdout.flush()
 
         history = f'max PC number = {np.amax(self.m_components)}'
 
@@ -370,11 +461,17 @@ class PcaPsfSubtractionModule(ProcessingModule):
             self.m_res_weighted_out_port.copy_attributes(self.m_star_in_port)
             self.m_res_weighted_out_port.add_history('PcaPsfSubtractionModule', history)
 
+        if self.m_res_stim_out_port is not None:
+            self.m_res_stim_out_port.copy_attributes(self.m_star_in_port)
+            self.m_res_stim_out_port.add_history('PcaPsfSubtractionModule', history)
+
         if self.m_res_rot_mean_clip_out_port is not None:
             self.m_res_rot_mean_clip_out_port.copy_attributes(self.m_star_in_port)
             self.m_res_rot_mean_clip_out_port.add_history('PcaPsfSubtractionModule', history)
 
         self.m_star_in_port.close_port()
+
+
 
 
 class ClassicalADIModule(ProcessingModule):
@@ -527,3 +624,174 @@ class ClassicalADIModule(ProcessingModule):
         self.m_stack_out_port.add_history('ClassicalADIModule', history)
 
         self.m_res_out_port.close_port()
+
+
+
+
+
+
+
+
+class ClassicalSDIModule(ProcessingModule):
+    """
+    Pipeline module for classicle SDI. This module is thought to be used purley
+    educational as it is not suitable as a real reduction methode.
+    """
+
+    __author__ = 'Sven Kiefer'
+
+    @typechecked
+    def __init__(self,
+                 name_in: str,
+                 image_in_tag: str,
+                 res_median_tag: str = None,
+                 res_mean_tag: str = None,
+                 median_back_tag: str = None,
+                 mean_back_tag: str = None) -> None:
+        """
+        Parameters
+        ----------
+        name_in : str
+            Unique name of the module instance.
+        image_in_tag : str
+            Tag of the database entry with the science images that are read as input.
+        res_median_tag : str
+            Tag of the database entry with the science images that are writen as output
+            using median subtraction.
+        res_mean_tag : str
+            Tag of the database entry with the science images that are writen as output
+            using mean subtraction.
+        median_back_tag : str
+            tag of the data base to store the background image created via median.
+        mean_back_tag : str
+            tag of the data base to store the background image created via mean.
+
+
+        Returns
+        -------
+        NoneType
+            None
+        """
+
+        super(ClassicalSDIModule, self).__init__(name_in)
+
+        self.m_median_back_tag = median_back_tag
+        self.m_mean_back_tag = mean_back_tag
+        self.m_median_tag = res_median_tag
+        self.m_mean_tag = res_mean_tag
+
+        self.m_image_in_port = self.add_input_port(image_in_tag)
+        if self.m_median_tag is not None:
+            self.m_median_out_port = self.add_output_port(res_median_tag)
+        if self.m_mean_tag is not None:
+            self.m_mean_out_port = self.add_output_port(res_mean_tag)
+        if self.m_median_back_tag is not None:
+            self.m_median_back_out_port = self.add_output_port(median_back_tag)
+        if self.m_mean_back_tag is not None:
+            self.m_mean_back_out_port = self.add_output_port(mean_back_tag)
+
+
+
+    @typechecked
+    def run(self) -> None:
+        """
+        Methode to reduce the image_in_tag with the spectral differentiated images
+        created by rescaling the images according to the wavelength.
+
+        Returns
+        -------
+        NoneType
+            None
+
+        [REMARK]: This module is purly educational and should not be used in a real
+            analysis of data
+        """
+
+
+        sys.stdout.write('Running ClassicalSDIModule...')
+        sys.stdout.flush()
+
+        #Prepare for read in
+        if self.m_median_back_tag is not None:
+            self.m_median_back_out_port.del_all_data()
+            self.m_median_back_out_port.del_all_attributes()
+
+        if self.m_mean_back_tag is not None:
+            self.m_mean_back_out_port.del_all_data()
+            self.m_mean_back_out_port.del_all_attributes()
+
+        if self.m_median_tag is not None:
+            self.m_median_out_port.del_all_data()
+            self.m_median_out_port.del_all_attributes()
+
+        if self.m_mean_tag is not None:
+            self.m_mean_out_port.del_all_data()
+            self.m_mean_out_port.del_all_attributes()
+
+
+        #read in and calculate important parameters
+        pixscale = self.m_image_in_port.get_attribute('PIXSCALE')
+        lam = self.m_image_in_port.get_attribute('LAMBDA')
+
+        data = self.m_image_in_port.get_all()
+        scaling = scaling_calculation(pixscale, lam)
+
+
+        #---------------------------------------------------------------------- rescaling
+        # rescale all pictures so spacles are at same position
+        data_new, max_s1, min_s2 = sdi_scaling(data, scaling_calculation(pixscale, lam))
+
+        data_n = data_new[:, max_s1:min_s2, max_s1:min_s2]
+
+
+        #---------------------------------------------------------------------- cSDI
+
+        def back_scaling(reduction):
+            #reduce the data with the reference image
+            red = np.zeros_like(data[:, max_s1:min_s2, max_s1:min_s2])
+            for i in range(len(data[:, 0, 0])):
+                red_sc = scale_image(reduction, 1/scaling[i], 1/scaling[i])
+
+                #Back scaling
+                dudes = min_s2 - max_s1
+                ludes = len(red_sc[:, 0])
+                f_1 = (ludes - dudes)//2
+                f_2 = (ludes + dudes)//2
+                pic = data[i, max_s1:min_s2, max_s1:min_s2]
+                bac = red_sc[f_1:f_2, f_1:f_2]
+                red[i] = pic - bac
+
+            return red
+
+
+        # median cSDI
+        if self.m_median_tag is not None:
+            reduction_im_median = np.nanmedian(data_n, axis=0)
+
+            red_median = back_scaling(reduction_im_median)
+
+            #prepare for output
+            self.m_median_out_port.set_all(red_median)
+            self.m_median_out_port.copy_attributes(self.m_image_in_port)
+            if self.m_median_back_tag is not None:
+                self.m_median_back_out_port.set_all(reduction_im_median)
+                self.m_median_back_out_port.copy_attributes(self.m_image_in_port)
+
+
+        # mean cSDI
+        if self.m_mean_tag is not None:
+            reduction_im_mean = np.nanmean(data_n, axis=0)
+
+            red_mean = back_scaling(reduction_im_mean)
+
+            #prepare for output
+            self.m_mean_out_port.set_all(red_mean)
+            self.m_mean_out_port.copy_attributes(self.m_image_in_port)
+            if self.m_mean_back_tag is not None:
+                self.m_mean_back_out_port.set_all(reduction_im_mean)
+                self.m_mean_back_out_port.copy_attributes(self.m_image_in_port)
+
+
+
+        sys.stdout.write(' [DONE]\n')
+        sys.stdout.flush()
