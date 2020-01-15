@@ -169,8 +169,6 @@ def set_extra_attr(fits_file: str,
     instrument = header[config_port.get_attribute('INSTRUMENT')]
     pixscale = config_port.get_attribute('PIXSCALE')
 
-    print(instrument)
-
     # Set parameters according to choice of instrument
     if instrument == 'NACO':
         # no overheads in cube mode, since cube is read out after all individual exposures
