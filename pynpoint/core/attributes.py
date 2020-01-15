@@ -98,13 +98,13 @@ def get_attributes():
                         'value': 'CD3_3',
                         'type': 'float'},
             'DATCOR': {'attribute': 'non-static',
-                        'config': 'header',
-                        'value': 'PIPEFILE',
-                        'type': 'str'},
+                       'config': 'header',
+                       'value': 'PIPEFILE',
+                       'type': 'str'},
             'EXPTIME': {'attribute': 'non-static',
-                      'config': 'header',
-                      'value': 'ESO DET SEQ1 DIT',
-                      'type': 'float'},
+                        'config': 'header',
+                        'value': 'ESO DET SEQ1 DIT',
+                        'type': 'float'},
             'STAR_POSITION': {'attribute': 'non-static',
                               'config': None,
                               'value': None,
@@ -118,8 +118,8 @@ def get_attributes():
                       'value': None,
                       'type': 'str'},
             'TIME': {'attribute': 'non-static',
-                      'config': None,
-                      'value': None,
-                      'type': 'float'}}
+                     'config': None,
+                     'value': None,
+                     'type': 'float'}}
 
     return attr

@@ -316,7 +316,7 @@ class PcaPsfSubtractionModule(ProcessingModule):
                                           angles=parang,
                                           lam=lam,
                                           processing_type=self.m_processing_type)
-                
+
                 self.m_res_rot_mean_clip_out_port.append(stack, data_dim=3)
 
 
