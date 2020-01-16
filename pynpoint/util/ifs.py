@@ -105,7 +105,8 @@ def scaling_calculation(pixscale: float,
 
 
 
-def i_want_to_seperate_wavelengths(processing_type):
+@typechecked
+def i_want_to_seperate_wavelengths(processing_type: str):
     """
     Returns True if processing_type suggests wavelength specific output'
 

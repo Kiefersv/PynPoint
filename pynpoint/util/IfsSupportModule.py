@@ -77,8 +77,6 @@ def IfsSupportModule(image_in_tag: List[str],
         -------
         NoneType
             None
-
-        [TODOs]: Add support for conditional parameters
     """
 
 
@@ -688,7 +686,7 @@ def IfsSupportModule(image_in_tag: List[str],
                 if 'subtract_mean' not in modi.keys():
                     modi['subtract_mean'] = None
                 if 'processing_type' not in modi.keys():
-                    modi['processing_type'] = 'Cadi'
+                    modi['processing_type'] = 'Tadi'
 
                 modu = PcaPsfSubtractionModule(name_in=modi['name_in'],
                                                images_in_tag=modi['images_in_tag'],
@@ -743,12 +741,15 @@ def IfsSupportModule(image_in_tag: List[str],
     """
 
     for imgs in image_out_tag:
+        
+        # Recombine all wavelengths
         names = [imgs + lum for lum in lambdas]
         mods = CombineTagsModule(name_in='WEOUT_' + imgs,
                                  image_in_tags=names,
                                  image_out_tag='WEOUT_' + imgs)
         pipe.add_module(mods)
-
+        
+        # Add fits writing modules if printing is wished
         if print_out:
             modk = FitsWritingModule(file_name='WEOUT_' + imgs + '.fits',
                                      name_in='write_WEOUT_' + imgs,

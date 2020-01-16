@@ -35,7 +35,7 @@ from pynpoint.util.image import polar_to_cartesian, center_subpixel
 
 
 
-
+@typechecked
 def spec_contrast_limit(path_images: str,
                         path_psf: str,
                         noise: np.ndarray,
@@ -93,14 +93,19 @@ def spec_contrast_limit(path_images: str,
         The separation (pix) and position angle (deg) of the fake planet.
     processing_type : str
         Type of post processing. Currently supported:
-            Cadi: Applay ADI and combining all wavelengths
-            Wadi: Applay ADI and returning all wavelengths
-            Csdi: Applay SDI and combining all wavelengths
-            Csaap: Applay SDI and ADI simultaniously and combining all wavelengths
-            Wsap: Applay SDI then ADI and returning all wavelengths
-            Csap: Applay SDI then ADI and combining all wavelengths
-            Wasp: Applay ADI then SDI and returning all wavelengths
-            Casp: Applay ADI then SDI and combining all wavelengths
+            Tnan: Applaying no PCA reduction and returning one wavelength avaraged image (Equivalent to Classical ADI)
+            Wnan: Applaying no PCA reduction and returing one image per Wavelengths
+            Tadi: Applaying ADI and creturning one wavelength avaraged image (Equivalent to IRDIS SDI if all wavelengths are the same)
+            Wadi: Applaying ADI and returing one image per Wavelengths
+            Tsdi: Applaying SDI and returning one wavelength avaraged image
+            Wsdi: Applaying SDI and returing one image per Wavelengths
+            Tsaa: Applaying SDI and ADI simultaniously and returning one wavelength avaraged image
+            Wsaa: Applaying SDI and ADI simultaniously and returing one image per Wavelengths
+            Tsap: Applaying SDI then ADI and returning one wavelength avaraged image
+            Wsap: Applaying SDI then ADI and returing one image per Wavelengths
+            Tasp: Applaying ADI then SDI and returning one wavelength avaraged image
+            Wasp: Applaying ADI then SDI and returing one image per Wavelengths
+        Each reduction step uses pca_number PCA components to reduce the images.
 
     Returns
     -------
@@ -300,6 +305,7 @@ def filter_scaling_calc(science_time: float,
 
 
 
+@typechecked
 def postprocessor(images: np.ndarray,
                   parang: np.ndarray,
                   scales: np.ndarray,
@@ -308,7 +314,7 @@ def postprocessor(images: np.ndarray,
                   im_shape: Tuple[int, int, int] = None,
                   indices: np.ndarray = None,
                   mask: np.ndarray = None,
-                  processing_type: str = 'Cadi'):
+                  processing_type: str = 'Tadi'):
 
 
     """
@@ -336,11 +342,19 @@ def postprocessor(images: np.ndarray,
         Mask (2D).
     processing_type : str
         Type of post processing. Currently supported:
-            Cadi/Wadi: Applay ADI
-            Csdi/Wsdi: Applay SDI
-            Csaap/Wsaap: Applay SDI and ADI simultaniously
-            Csap/Wsap: Applay SDI then ADI
-            Casp/Wasp: Applay ADI then SDI
+            Tnan: Applaying no PCA reduction and returning one wavelength avaraged image (Equivalent to Classical ADI)
+            Wnan: Applaying no PCA reduction and returing one image per Wavelengths
+            Tadi: Applaying ADI and creturning one wavelength avaraged image (Equivalent to IRDIS SDI if all wavelengths are the same)
+            Wadi: Applaying ADI and returing one image per Wavelengths
+            Tsdi: Applaying SDI and returning one wavelength avaraged image
+            Wsdi: Applaying SDI and returing one image per Wavelengths
+            Tsaa: Applaying SDI and ADI simultaniously and returning one wavelength avaraged image
+            Wsaa: Applaying SDI and ADI simultaniously and returing one image per Wavelengths
+            Tsap: Applaying SDI then ADI and returning one wavelength avaraged image
+            Wsap: Applaying SDI then ADI and returing one image per Wavelengths
+            Tasp: Applaying ADI then SDI and returning one wavelength avaraged image
+            Wasp: Applaying ADI then SDI and returing one image per Wavelengths
+        Each reduction step uses pca_number PCA components to reduce the images.
 
     Returns
     -------
@@ -357,7 +371,7 @@ def postprocessor(images: np.ndarray,
     lam_splits = np.sort(list(set(scales)))
     tim_splits = np.sort(list(set(parang)))
     
-    if processing_type not in ['Wnan', 'Cnan', 'Wadi', 'Cadi']:
+    if processing_type not in ['Wnan', 'Tnan', 'Wadi', 'Tadi']:
         if im_shape is not None:
             swup = np.zeros((im_shape[0], im_shape[1]*im_shape[2]))
             if indices is not None:
@@ -395,7 +409,7 @@ def postprocessor(images: np.ndarray,
 
     #----------------------------------------- List of different processing
     # No reduction
-    if processing_type in ['Wnan', 'Cnan']:
+    if processing_type in ['Wnan', 'Tnan']:
 
         res_raw = ims
         for j, item in enumerate(parang):
@@ -404,7 +418,7 @@ def postprocessor(images: np.ndarray,
 
 
     # Wavelength specific adi
-    elif processing_type in ['Wadi', 'Cadi']:
+    elif processing_type in ['Wadi', 'Tadi']:
 
         for ii, lam_i in enumerate(lam_splits):
             mask_i = (scales == lam_i)
@@ -422,7 +436,7 @@ def postprocessor(images: np.ndarray,
 
 
     # SDI for each time frame
-    elif processing_type in ['Wsdi', 'Csdi']:
+    elif processing_type in ['Wsdi', 'Tsdi']:
 
         im_scaled, _, _ = sdi_scaling(ims, scales)
         for ii, tim_i in enumerate(tim_splits):
@@ -441,7 +455,7 @@ def postprocessor(images: np.ndarray,
 
 
     # SDI and ADI simultaniously
-    elif processing_type in ['Wsaap', 'Csaap']:
+    elif processing_type in ['Wsaap', 'Tsaa']:
         im_scaled, _, _ = sdi_scaling(ims, scales)
 
         res_raw, res_rot = pca_psf_subtraction(images=im_scaled*mask,
@@ -455,7 +469,7 @@ def postprocessor(images: np.ndarray,
 
 
     # SDI then ADI
-    elif processing_type in ['Wsap', 'Csap']:
+    elif processing_type in ['Wsap', 'Tsap']:
         res_raw_int = np.zeros_like(res_raw)
 
         im_scaled, _, _ = sdi_scaling(ims, scales)
@@ -487,7 +501,7 @@ def postprocessor(images: np.ndarray,
 
 
     # ADI then SDI
-    elif processing_type in ['Wasp', 'Casp']:
+    elif processing_type in ['Wasp', 'Tasp']:
         res_raw_int = np.zeros_like(res_raw)
 
         for jj, lam_j in enumerate(lam_splits):

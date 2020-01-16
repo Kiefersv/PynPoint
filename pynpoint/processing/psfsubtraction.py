@@ -55,7 +55,7 @@ class PcaPsfSubtractionModule(ProcessingModule):
                  pca_numbers: Union[range, List[int], np.ndarray] = range(1, 21),
                  extra_rot: float = 0.,
                  subtract_mean: bool = True,
-                 processing_type: str = 'Cadi') -> None:
+                 processing_type: str = 'Tadi') -> None:
         """
         Parameters
         ----------
@@ -76,7 +76,7 @@ class PcaPsfSubtractionModule(ProcessingModule):
             Not calculated if set to None.
         res_stim_tag : str, None
             Tag of the database entry with the stim residuals (see Pairet et al. 2010).
-            Not calculated if set to None.
+            Not calculated if set to None. This is a detection map and not residuals
         res_rot_mean_clip_tag : str, None
             Tag of the database entry of the clipped mean residuals. Not calculated if set to
             None.
@@ -94,6 +94,21 @@ class PcaPsfSubtractionModule(ProcessingModule):
         subtract_mean : bool
             The mean of the science and reference images is subtracted from the corresponding
             stack, before the PCA basis is constructed and fitted.
+        processing_type : str
+            Type of post processing. Currently supported:
+                Tnan: Applaying no PCA reduction and returning one wavelength avaraged image (Equivalent to Classical ADI)
+                Wnan: Applaying no PCA reduction and returing one image per Wavelengths
+                Tadi: Applaying ADI and creturning one wavelength avaraged image (Equivalent to IRDIS SDI if all wavelengths are the same)
+                Wadi: Applaying ADI and returing one image per Wavelengths
+                Tsdi: Applaying SDI and returning one wavelength avaraged image
+                Wsdi: Applaying SDI and returing one image per Wavelengths
+                Tsaa: Applaying SDI and ADI simultaniously and returning one wavelength avaraged image
+                Wsaa: Applaying SDI and ADI simultaniously and returing one image per Wavelengths
+                Tsap: Applaying SDI then ADI and returning one wavelength avaraged image
+                Wsap: Applaying SDI then ADI and returing one image per Wavelengths
+                Tasp: Applaying ADI then SDI and returning one wavelength avaraged image
+                Wasp: Applaying ADI then SDI and returing one image per Wavelengths
+            Each reduction step uses pca_number PCA components to reduce the images.
 
         Returns
         -------
