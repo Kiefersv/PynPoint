@@ -12,7 +12,6 @@ from sklearn.decomposition import PCA
 from pynpoint.util.image import scale_image
 
 
-
 def pca_psf_subtraction(images: np.ndarray,
                         angles: np.ndarray,
                         pca_number: int,
@@ -111,7 +110,6 @@ def pca_psf_subtraction(images: np.ndarray,
 
     else:
         scal_cor = residuals
-
 
     # derotate the images
     res_rot = np.zeros(residuals.shape)

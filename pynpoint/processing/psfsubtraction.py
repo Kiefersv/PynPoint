@@ -26,10 +26,6 @@ from pynpoint.util.ifs import sdi_scaling, scaling_calculation, \
 from pynpoint.util.sdi import postprocessor
 
 
-
-
-
-
 class PcaPsfSubtractionModule(ProcessingModule):
     """
     Pipeline module for PSF subtraction with principal component analysis (PCA). The residuals are
@@ -189,7 +185,6 @@ class PcaPsfSubtractionModule(ProcessingModule):
         else:
             tmp_output = np.zeros((len(self.m_components), im_shape[1], im_shape[2]))
 
-
         if self.m_res_mean_out_port is not None:
             self.m_res_mean_out_port.set_all(tmp_output, keep_attributes=False)
 
@@ -263,7 +258,6 @@ class PcaPsfSubtractionModule(ProcessingModule):
             pixscale = self.m_star_in_port.get_attribute('PIXSCALE')
             lam = self.m_star_in_port.get_attribute('LAMBDA')
 
-
             if lam is None:
                 lam = np.ones_like(parang)
 
@@ -333,7 +327,6 @@ class PcaPsfSubtractionModule(ProcessingModule):
                                           processing_type=self.m_processing_type)
 
                 self.m_res_rot_mean_clip_out_port.append(stack, data_dim=3)
-
 
         sys.stdout.write('Creating residuals... [DONE]\n')
         sys.stdout.flush()
@@ -485,8 +478,6 @@ class PcaPsfSubtractionModule(ProcessingModule):
             self.m_res_rot_mean_clip_out_port.add_history('PcaPsfSubtractionModule', history)
 
         self.m_star_in_port.close_port()
-
-
 
 
 class ClassicalADIModule(ProcessingModule):
@@ -641,12 +632,6 @@ class ClassicalADIModule(ProcessingModule):
         self.m_res_out_port.close_port()
 
 
-
-
-
-
-
-
 class ClassicalSDIModule(ProcessingModule):
     """
     Pipeline module for classicle SDI. This module is thought to be used purley
@@ -705,8 +690,6 @@ class ClassicalSDIModule(ProcessingModule):
         if self.m_mean_back_tag is not None:
             self.m_mean_back_out_port = self.add_output_port(mean_back_tag)
 
-
-
     @typechecked
     def run(self) -> None:
         """
@@ -722,11 +705,10 @@ class ClassicalSDIModule(ProcessingModule):
             analysis of data
         """
 
-
         sys.stdout.write('Running ClassicalSDIModule...')
         sys.stdout.flush()
 
-        #Prepare for read in
+        # Prepare for read in
         if self.m_median_back_tag is not None:
             self.m_median_back_out_port.del_all_data()
             self.m_median_back_out_port.del_all_attributes()
@@ -743,31 +725,28 @@ class ClassicalSDIModule(ProcessingModule):
             self.m_mean_out_port.del_all_data()
             self.m_mean_out_port.del_all_attributes()
 
-
-        #read in and calculate important parameters
+        # read in and calculate important parameters
         pixscale = self.m_image_in_port.get_attribute('PIXSCALE')
         lam = self.m_image_in_port.get_attribute('LAMBDA')
 
         data = self.m_image_in_port.get_all()
         scaling = scaling_calculation(pixscale, lam)
 
-
-        #---------------------------------------------------------------------- rescaling
+        # ---------------------------------------------------------------------- rescaling
         # rescale all pictures so spacles are at same position
         data_new, max_s1, min_s2 = sdi_scaling(data, scaling_calculation(pixscale, lam))
 
         data_n = data_new[:, max_s1:min_s2, max_s1:min_s2]
 
-
-        #---------------------------------------------------------------------- cSDI
+        # ---------------------------------------------------------------------- cSDI
 
         def back_scaling(reduction):
-            #reduce the data with the reference image
+            # reduce the data with the reference image
             red = np.zeros_like(data[:, max_s1:min_s2, max_s1:min_s2])
             for i in range(len(data[:, 0, 0])):
                 red_sc = scale_image(reduction, 1/scaling[i], 1/scaling[i])
 
-                #Back scaling
+                # Back scaling
                 dudes = min_s2 - max_s1
                 ludes = len(red_sc[:, 0])
                 f_1 = (ludes - dudes)//2
@@ -778,20 +757,18 @@ class ClassicalSDIModule(ProcessingModule):
 
             return red
 
-
         # median cSDI
         if self.m_median_tag is not None:
             reduction_im_median = np.nanmedian(data_n, axis=0)
 
             red_median = back_scaling(reduction_im_median)
 
-            #prepare for output
+            # prepare for output
             self.m_median_out_port.set_all(red_median)
             self.m_median_out_port.copy_attributes(self.m_image_in_port)
             if self.m_median_back_tag is not None:
                 self.m_median_back_out_port.set_all(reduction_im_median)
                 self.m_median_back_out_port.copy_attributes(self.m_image_in_port)
-
 
         # mean cSDI
         if self.m_mean_tag is not None:
@@ -799,14 +776,12 @@ class ClassicalSDIModule(ProcessingModule):
 
             red_mean = back_scaling(reduction_im_mean)
 
-            #prepare for output
+            # prepare for output
             self.m_mean_out_port.set_all(red_mean)
             self.m_mean_out_port.copy_attributes(self.m_image_in_port)
             if self.m_mean_back_tag is not None:
                 self.m_mean_back_out_port.set_all(reduction_im_mean)
                 self.m_mean_back_out_port.copy_attributes(self.m_image_in_port)
-
-
 
         sys.stdout.write(' [DONE]\n')
         sys.stdout.flush()

@@ -29,12 +29,8 @@ from pynpoint.processing.fluxposition import SimplexMinimizationModule, FakePlan
 from pynpoint.readwrite.fitswriting import FitsWritingModule
 from pynpoint.readwrite.fitsreading import FitsReadingModule
 
-from pynpoint.processing.ifs import IfsScalingModule, CenteringReductionModule, FrameClipModule
-from pynpoint.processing.photometry import SdiAperturePhotometryModule
-
-
-
-
+#from pynpoint.processing.ifs import IfsScalingModule, CenteringReductionModule, FrameClipModule
+#from pynpoint.processing.photometry import SdiAperturePhotometryModule
 
 
 def IfsSupportModule(image_in_tag: List[str],
@@ -79,7 +75,6 @@ def IfsSupportModule(image_in_tag: List[str],
             None
     """
 
-
     # ----- Step1: splitting datasets
     """
     The splitting step takes information from either the path_lam or path_in and reads
@@ -90,10 +85,9 @@ def IfsSupportModule(image_in_tag: List[str],
     sys.stdout.write('Running IfsSupportModdule .... ')
     sys.stdout.flush()
 
-    #check path_lam:
+    # check path_lam:
     if path_lam is None:
         path_lam = pipe._m_input_place
-
 
     # open path to path_lam. This step is necessary to accuratly determin the splitting
     # parameters which are used for the rest of the module.
@@ -108,17 +102,15 @@ def IfsSupportModule(image_in_tag: List[str],
     puplunu.add_module(mod_pup)
     puplunu.run()
 
-
-    #collecting splitting arguments
+    # collecting splitting arguments
     lams = puplunu.get_attribute('pre_load', split_argument, static=False)
     lams = list(set(lams))
     lams_str = [str(i) for i in lams]
     lambdas = ['_' + split_argument + i for i in lams_str]
 
-
     arg_len = len(split_argument) + 1
     if not skip_split:
-        #Seperating input data
+        # Seperating input data
         for tag in image_in_tag:
             for lami in lambdas:
                 mods = SelectGivenAttributesModule(name_in='WEIN_' + tag + lami,
@@ -127,11 +119,6 @@ def IfsSupportModule(image_in_tag: List[str],
                                                    attribute_tag=split_argument,
                                                    attribute_value=lami[arg_len:])
                 pipe.add_module(mods)
-
-
-
-
-
 
     # ----- Step2: Add modules to pipeline
     """
@@ -145,8 +132,7 @@ def IfsSupportModule(image_in_tag: List[str],
         for lamj in lambdas:
             modi = mod_args[j].copy()
 
-            #List of available modules
-
+            # List of available modules
             if mod_args[j]['module'] == 'BadPixelSigmaFilterModule':
 
                 modi['name_in'] = mod_args[j]['name_in'] + lamj
@@ -170,8 +156,6 @@ def IfsSupportModule(image_in_tag: List[str],
                                                  box=modi['box'],
                                                  sigma=modi['sigma'],
                                                  iterate=modi['iterate'])
-
-
 
             elif mod_args[j]['module'] == 'WaffleCenteringModule':
 
@@ -209,8 +193,6 @@ def IfsSupportModule(image_in_tag: List[str],
                                              sigma=modi['sigma'],
                                              dither=modi['dither'])
 
-
-
             elif mod_args[j]['module'] == 'FitsWritingModule':
 
                 modi['name_in'] = mod_args[j]['name_in'] + lamj
@@ -233,8 +215,6 @@ def IfsSupportModule(image_in_tag: List[str],
                                          overwrite=modi['overwrite'],
                                          subset_size=modi['subset_size'])
 
-
-
             elif mod_args[j]['module'] == 'AngleCalculationModule':
 
                 modi['name_in'] = mod_args[j]['name_in'] + lamj
@@ -245,8 +225,6 @@ def IfsSupportModule(image_in_tag: List[str],
                 modu = AngleCalculationModule(name_in=modi['name_in'],
                                               data_tag=modi['data_tag'],
                                               instrument=modi['instrument'])
-
-
 
             elif mod_args[j]['module'] == 'BadPixelMapModule':
 
@@ -268,15 +246,14 @@ def IfsSupportModule(image_in_tag: List[str],
                                          dark_threshold=modi['dark_threshold'],
                                          flat_threshold=modi['flat_threshold'])
 
-
-
             elif mod_args[j]['module'] == 'ReplaceBadPixelsModule':
 
                 modi['name_in'] = mod_args[j]['name_in'] + lamj
                 modi['image_in_tag'] = mod_args[j]['image_in_tag'] + lamj
+                modi['map_in_tag'] = mod_args[j]['map_in_tag'] + lamj
                 modi['image_out_tag'] = mod_args[j]['image_out_tag'] + lamj
                 if 'sigma' not in modi.keys():
-                    modi['sigma'] = ReplaceBadPixelsModule.__defaults__[0]
+                    modi['sigma'] = None
                 if 'size' not in modi.keys():
                     modi['size'] = 2
                 if 'replace' not in modi.keys():
@@ -284,12 +261,11 @@ def IfsSupportModule(image_in_tag: List[str],
 
                 modu = ReplaceBadPixelsModule(name_in=modi['name_in'],
                                               image_in_tag=modi['image_in_tag'],
+                                              map_in_tag=modi['map_in_tag'],
                                               image_out_tag=modi['image_out_tag'],
                                               sigma=modi['sigma'],
                                               size=modi['size'],
                                               replace=modi['replace'])
-
-
 
             elif mod_args[j]['module'] == 'IfsScalingModule':
 
@@ -310,8 +286,6 @@ def IfsSupportModule(image_in_tag: List[str],
                                         angle=modi['angle'],
                                         pixscale=modi['pixscale'])
 
-
-
             elif mod_args[j]['module'] == 'SortParangModule':
 
                 modi['name_in'] = mod_args[j]['name_in'] + lamj
@@ -321,8 +295,6 @@ def IfsSupportModule(image_in_tag: List[str],
                 modu = SortParangModule(name_in=modi['name_in'],
                                         image_in_tag=modi['image_in_tag'],
                                         image_out_tag=modi['image_out_tag'])
-
-
 
             elif mod_args[j]['module'] == 'DerotateAndStackModule':
 
@@ -342,8 +314,6 @@ def IfsSupportModule(image_in_tag: List[str],
                                               derotate=modi['derotate'],
                                               stack=modi['stack'],
                                               extra_rot=modi['extra_rot'])
-
-
 
             elif mod_args[j]['module'] == 'ClassicalADIModule':
 
@@ -369,8 +339,6 @@ def IfsSupportModule(image_in_tag: List[str],
                                           residuals=modi['residuals'],
                                           extra_rot=modi['extra_rot'])
 
-
-
             elif mod_args[j]['module'] == 'CropImagesModule':
 
                 modi['name_in'] = mod_args[j]['name_in'] + lamj
@@ -384,8 +352,6 @@ def IfsSupportModule(image_in_tag: List[str],
                                         image_out_tag=modi['image_out_tag'],
                                         size=modi['size'],
                                         center=modi['center'])
-
-
 
             elif mod_args[j]['module'] == 'PSFpreparationModule':
 
@@ -411,8 +377,6 @@ def IfsSupportModule(image_in_tag: List[str],
                                             cent_size=modi['cent_size'],
                                             edge_size=modi['edge_size'])
 
-
-
             elif mod_args[j]['module'] == 'CenteringReductionModule':
 
                 modi['name_in'] = mod_args[j]['name_in'] + lamj
@@ -425,14 +389,13 @@ def IfsSupportModule(image_in_tag: List[str],
                                                 center_in_tag=modi['center_in_tag'],
                                                 center_out_tag=modi['center_out_tag'])
 
-
-
             elif mod_args[j]['module'] == 'StarExtractionModule':
 
                 modi['name_in'] = mod_args[j]['name_in'] + lamj
                 modi['image_in_tag'] = mod_args[j]['image_in_tag'] + lamj
                 modi['image_out_tag'] = mod_args[j]['image_out_tag'] + lamj
-                if 'index_out_tag' not in modi.keys(): modi['index_out_tag'] = None
+                if 'index_out_tag' not in modi.keys():
+                    modi['index_out_tag'] = None
                 if modi['index_out_tag'] is not None:
                     modi['index_out_tag'] = mod_args[j]['index_out_tag'] + lamj
                 if 'image_size' not in modi.keys():
@@ -449,8 +412,6 @@ def IfsSupportModule(image_in_tag: List[str],
                                             image_size=modi['image_size'],
                                             fwhm_star=modi['fwhm_star'],
                                             position=modi['position'])
-
-
 
             elif mod_args[j]['module'] == 'StarAlignmentModule':
 
@@ -482,8 +443,6 @@ def IfsSupportModule(image_in_tag: List[str],
                                            num_references=modi['num_references'],
                                            subframe=modi['subframe'])
 
-
-
             elif mod_args[j]['module'] == 'FitCenterModule':
 
                 modi['name_in'] = mod_args[j]['name_in'] + lamj
@@ -514,8 +473,6 @@ def IfsSupportModule(image_in_tag: List[str],
                                        model=modi['model'],
                                        filter_size=modi['filter_size'])
 
-
-
             elif mod_args[j]['module'] == 'ShiftImagesModule':
 
                 modi['name_in'] = mod_args[j]['name_in'] + lamj
@@ -530,8 +487,6 @@ def IfsSupportModule(image_in_tag: List[str],
                                          image_out_tag=modi['image_out_tag'],
                                          shift_xy=modi['shift_xy'],
                                          interpolation=modi['interpolation'])
-
-
 
             elif mod_args[j]['module'] == 'SdiAperturePhotometryModule':
 
@@ -566,8 +521,6 @@ def IfsSupportModule(image_in_tag: List[str],
                                                    cutout_size=modi['cutout_size'],
                                                    fit_each_image=modi['fit_each_image'],
                                                    aperture_size=modi['aperture_size'])
-
-
 
             elif mod_args[j]['module'] == 'SimplexMinimizationModule':
 
@@ -626,8 +579,6 @@ def IfsSupportModule(image_in_tag: List[str],
                                                  reference_in_tag=modi['reference_in_tag'],
                                                  processing_type=modi['processing_type'])
 
-
-
             elif mod_args[j]['module'] == 'FrameClipModule':
 
                 modi['name_in'] = mod_args[j]['name_in'] + lamj
@@ -643,8 +594,6 @@ def IfsSupportModule(image_in_tag: List[str],
                                        image_out_tag=modi['image_out_tag'],
                                        clip_length=modi['clip_length'],
                                        clip_mode=modi['clip_mode'])
-
-
 
             elif mod_args[j]['module'] == 'PcaPsfSubtractionModule':
 
@@ -702,8 +651,6 @@ def IfsSupportModule(image_in_tag: List[str],
                                                subtract_mean=modi['subtract_mean'],
                                                processing_type=modi['processing_type'])
 
-
-
             elif mod_args[j]['module'] == 'FakePlanetModule':
 
                 modi['name_in'] = mod_args[j]['name_in'] + lamj
@@ -727,28 +674,26 @@ def IfsSupportModule(image_in_tag: List[str],
             else:
                 raise ValueError('The module '+mod_args[j]['module']+' is not implemented')
 
-            #Add the selected and prepared module
+            # Add the selected and prepared module
             pipe.add_module(modu)
 
         j += 1
 
-
-
     # ----- Step3: Recombine all splitted tags
     """
     Recombines all image_out_tag after recombining them. The output_tag is called
-    WEOUT_ before the image tag to avoid ambiguty. 
+    WEOUT_ before the image tag to avoid ambiguty.
     """
 
     for imgs in image_out_tag:
-        
+
         # Recombine all wavelengths
         names = [imgs + lum for lum in lambdas]
         mods = CombineTagsModule(name_in='WEOUT_' + imgs,
                                  image_in_tags=names,
                                  image_out_tag='WEOUT_' + imgs)
         pipe.add_module(mods)
-        
+
         # Add fits writing modules if printing is wished
         if print_out:
             modk = FitsWritingModule(file_name='WEOUT_' + imgs + '.fits',

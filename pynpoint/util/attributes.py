@@ -163,70 +163,23 @@ def set_extra_attr(fits_file: str,
         First image index for the next subset.
     """
 
-    skiper = False
-
     # Parameters needed for assignment
-    instrument = header[config_port.get_attribute('INSTRUMENT')]
     pixscale = config_port.get_attribute('PIXSCALE')
 
-    # Set parameters according to choice of instrument
-    if instrument == 'NACO':
-        # no overheads in cube mode, since cube is read out after all individual exposures
-        # see NACO manual page 62 (v102)
-        o_start = 0.
-        dit_delay = 0.
-        rot = 0.
-
-        skiper = True
-
-
-
-    elif instrument == 'SPHERE/IRDIS':
-        # overheads in cube mode (several NDITS) in hours
-        o_start = 0.3 / 3600.        # According to SPHERE manual page 90/91 (v102)
-        dit_delay = 0.1 / 3600.      # According to SPHERE manual page 90/91 (v102)
-        rot = 0.838 / 3600.          # According to SPHERE manual page 90/91 (v102)
-
-        skiper = True
-
-    elif instrument == 'SPHERE':
-        # overheads in cube mode (several NDITS) in hours
-        o_start = 0.3 / 3600.            # According to SPHERE manual page 90/91 (v102)
-        dit_delay = 0.2 / 3600.          # According to SPHERE manual page 90/91 (v102)
-        rot = 1.65 / 3600.               # According to SPHERE manual page 90/91 (v102)
-
+    if config_port.get_attribute('LAMBDA0') != 'None':
         lambda0 = header[config_port.get_attribute('LAMBDA0')]
+
+    if config_port.get_attribute('LAMBDAD') != 'None':
         lambda_d = header[config_port.get_attribute('LAMBDAD')]
-        dattim = header[config_port.get_attribute('DATE')]
-        exptim = header[config_port.get_attribute('DIT')]
-        datcor = int((header[config_port.get_attribute('DATCOR')])[-9:-5])
-        tel_lat = header[config_port.get_attribute('LATITUDE')]
-        tel_lon = header[config_port.get_attribute('LONGITUDE')]
-
-    else:
-   # default case
-        o_start = 0.
-        dit_delay = 0.2 / 3600.
-        rot = 1.65 / 3600.
-
-        skiper = True
-
-    if not skiper:
-        dat_old = Time(dattim,
-                       location=EarthLocation(lat=tel_lat,
-                                              lon=tel_lon)).sidereal_time('apparent').value
-        dat_new = dat_old + o_start + (exptim/3600 + dit_delay + rot)*datcor
 
     image_index = np.arange(first_index, first_index+nimages, 1)
 
     for item in image_index:
         image_out_port.append_attribute_data('INDEX', item)
-        if not skiper:
+        if config_port.get_attribute('LAMBDA0') != 'None' and config_port.get_attribute('LAMBDAD') != 'None':
             image_out_port.append_attribute_data('LAMBDA', lambda0 + lambda_d*(item-first_index))
-            image_out_port.append_attribute_data('TIME', dat_new)
         else:
             image_out_port.append_attribute_data('LAMBDA', 1)
-
 
     image_out_port.append_attribute_data('FILES', fits_file)
     image_out_port.add_attribute('PIXSCALE', pixscale, static=True)

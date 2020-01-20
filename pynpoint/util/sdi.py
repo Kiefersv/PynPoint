@@ -13,7 +13,7 @@ import math
 import numpy as np
 import time
 
-from typing import Tuple
+from typing import Tuple, Union
 from typeguard import typechecked
 from sklearn.decomposition import PCA
 from scipy.ndimage import rotate
@@ -29,10 +29,6 @@ from pynpoint.util.psf import pca_psf_subtraction
 from pynpoint.util.ifs import sdi_scaling
 from pynpoint.util.analysis import student_t, false_alarm
 from pynpoint.util.image import polar_to_cartesian, center_subpixel
-
-
-
-
 
 
 @typechecked
@@ -117,7 +113,6 @@ def spec_contrast_limit(path_images: str,
         Contrast (mag).
     float
         False positive fraction.
-
     """
 
     images = np.load(path_images)
@@ -166,7 +161,7 @@ def spec_contrast_limit(path_images: str,
     mag = np.zeros((len(psf)))
     flux_in = np.zeros((ll))
     star = np.zeros((ll))
-    
+
     ap_phot = CircularAperture((im_center[1], im_center[0]), aperture)
 
     for f in range(ll):
@@ -186,7 +181,7 @@ def spec_contrast_limit(path_images: str,
                        position=(position[0], position[1]),
                        magnitude=mag,
                        psf_scaling=1.)
-    
+
     # apply post processing
     _, res_rot = postprocessor(images=fake,
                                parang=-1.*parang+extra_rot,
@@ -214,10 +209,9 @@ def spec_contrast_limit(path_images: str,
                                            y_pos=yx_fake[0],
                                            size=aperture,
                                            ignore=False)
-        
+
     # Calculate the amount of self-subtraction
     attenuation = flux_out/flux_in
-
 
     # Calculate the detection limit
     contrast = sigma*t_noise/(attenuation*star)
@@ -237,10 +231,6 @@ def spec_contrast_limit(path_images: str,
 
     # Separation [pix], position antle [deg], contrast [mag], FPF
     return pos_0, pos_1, contrast, fpf_3
-
-
-
-
 
 
 @typechecked
@@ -268,30 +258,33 @@ def filter_scaling_calc(science_time: float,
         -------
         float
             psf_scaling factor
-
     """
 
     path_nd_table = os.path.join(os.path.dirname(os.path.abspath(__file__)) + '/SPHERE_CPI_ND.dat')
     nd_table = ascii.read(path_nd_table)
     fl_filt = 'col2'
 
-    if flux_filter == 'ND_0.0': fl_filt = 'col2'
-    elif flux_filter == 'ND_1.0': fl_filt = 'col3'
-    elif flux_filter == 'ND_2.0': fl_filt = 'col4'
-    elif flux_filter == 'ND_3.5': fl_filt = 'col5'
+    if flux_filter == 'ND_0.0':
+        fl_filt = 'col2'
+    elif flux_filter == 'ND_1.0':
+        fl_filt = 'col3'
+    elif flux_filter == 'ND_2.0':
+        fl_filt = 'col4'
+    elif flux_filter == 'ND_3.5':
+        fl_filt = 'col5'
     else:
         raise ValueError('Choosen filter does not exist')
 
-    #Gaussian weighting
+    # Gaussian weighting
     gauss_weight = models.Gaussian1D(1, wavelength * 1000, delta_wavelength * 1000)
 
-    #calculate nd filter effect and std deviation
+    # calculate nd filter effect and std deviation
     tmp_nd_wght_avrg_flux = np.average(nd_table[fl_filt].data,
                                        weights=gauss_weight(nd_table["col1"].data))
-    tmp_nd_wght_std_flux=np.sqrt(np.average((nd_table[fl_filt].data-tmp_nd_wght_avrg_flux)**2,
-                                            weights=gauss_weight(nd_table["col1"].data)))
+    tmp_nd_wght_std_flux = np.sqrt(np.average((nd_table[fl_filt].data-tmp_nd_wght_avrg_flux)**2,
+                                              weights=gauss_weight(nd_table["col1"].data)))
 
-    #Assigne filter scaling as ufloat
+    # Assigne filter scaling as ufloat
     filter_scaling = ufloat(tmp_nd_wght_avrg_flux,
                             tmp_nd_wght_std_flux)
 
@@ -301,21 +294,16 @@ def filter_scaling_calc(science_time: float,
     return psf_scaling
 
 
-
-
-
-
 @typechecked
 def postprocessor(images: np.ndarray,
                   parang: np.ndarray,
                   scales: np.ndarray,
-                  pca_number: int,
+                  pca_number: Union[int, np.int64],
                   pca_sklearn: PCA = None,
                   im_shape: Tuple[int, int, int] = None,
                   indices: np.ndarray = None,
                   mask: np.ndarray = None,
                   processing_type: str = 'Tadi'):
-
 
     """
     Function to apply different kind of post processings. If processing_type = \'Cadi\'
@@ -362,15 +350,14 @@ def postprocessor(images: np.ndarray,
         Residuals of the PSF subtraction.
     numpy.ndarray
         Derotated residuals of the PSF subtraction.
-
     """
 
     if mask is None:
         mask = 1.
-    
+
     lam_splits = np.sort(list(set(scales)))
     tim_splits = np.sort(list(set(parang)))
-    
+
     if processing_type not in ['Wnan', 'Tnan', 'Wadi', 'Tadi']:
         if im_shape is not None:
             swup = np.zeros((im_shape[0], im_shape[1]*im_shape[2]))
@@ -379,18 +366,17 @@ def postprocessor(images: np.ndarray,
             else:
                 swup = images
             ims = swup.reshape(im_shape)
-    
+
         else:
             ims = images
-            
-    
+
         pca_sklearn = None
         im_shape = None
         indices = None
-        
+
         res_raw = np.zeros_like(ims)
         res_rot = np.zeros_like(ims)
-    
+
     # --- For backward compatablitiy
     else:
         ims = images
@@ -407,15 +393,13 @@ def postprocessor(images: np.ndarray,
         res_raw = np.zeros_like(ims_size)
         res_rot = np.zeros_like(ims_size)
 
-    #----------------------------------------- List of different processing
+    # ----------------------------------------- List of different processing
     # No reduction
     if processing_type in ['Wnan', 'Tnan']:
 
         res_raw = ims
         for j, item in enumerate(parang):
             res_rot[j, ] = rotate(ims[j, ], item, reshape=False)
-
-
 
     # Wavelength specific adi
     elif processing_type in ['Wadi', 'Tadi']:
@@ -432,8 +416,6 @@ def postprocessor(images: np.ndarray,
 
             res_raw[mask_i] = res_raw_i
             res_rot[mask_i] = res_rot_i
-
-
 
     # SDI for each time frame
     elif processing_type in ['Wsdi', 'Tsdi']:
@@ -452,8 +434,6 @@ def postprocessor(images: np.ndarray,
             res_raw[mask_i] = res_raw_i
             res_rot[mask_i] = res_rot_i
 
-
-
     # SDI and ADI simultaniously
     elif processing_type in ['Wsaap', 'Tsaa']:
         im_scaled, _, _ = sdi_scaling(ims, scales)
@@ -465,8 +445,6 @@ def postprocessor(images: np.ndarray,
                                                pca_sklearn=pca_sklearn,
                                                im_shape=im_shape,
                                                indices=indices)
-
-
 
     # SDI then ADI
     elif processing_type in ['Wsap', 'Tsap']:
@@ -498,8 +476,6 @@ def postprocessor(images: np.ndarray,
             res_raw[mask_j] = res_raw_i
             res_rot[mask_j] = res_rot_i
 
-
-
     # ADI then SDI
     elif processing_type in ['Wasp', 'Tasp']:
         res_raw_int = np.zeros_like(res_raw)
@@ -530,13 +506,9 @@ def postprocessor(images: np.ndarray,
             res_raw[mask_i] = res_raw_i
             res_rot[mask_i] = res_rot_i
 
-
-
     else:
         # Error message if unknown processing type
         st = 'Processing type ' + processing_type + ' is not supported'
         raise ValueError(st)
-
-
 
     return res_raw, res_rot

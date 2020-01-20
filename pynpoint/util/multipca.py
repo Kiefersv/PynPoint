@@ -160,8 +160,8 @@ class PcaTaskProcessor(TaskProcessor):
                                            pca_sklearn=self.m_pca_model,
                                            im_shape=self.m_im_shape,
                                            indices=self.m_indices,
-                                           processing_type = self.m_processing_type)
-        
+                                           processing_type=self.m_processing_type)
+
         # Prepare either single or wavelength output
         if i_want_to_seperate_wavelengths(self.m_processing_type):
             res_output = np.zeros((5, len(list(set(self.m_scales))), res_rot.shape[1], res_rot.shape[2]))
@@ -169,16 +169,16 @@ class PcaTaskProcessor(TaskProcessor):
             res_output = np.zeros((5, 1, res_rot.shape[1], res_rot.shape[2]))
 
         if self.m_requirements[0]:
-            res_output[0, ] = combine_residuals(method='mean', 
+            res_output[0, ] = combine_residuals(method='mean',
                                                 res_rot=res_rot,
                                                 lam=self.m_scales,
-                                                processing_type = self.m_processing_type)
+                                                processing_type=self.m_processing_type)
 
         if self.m_requirements[1]:
-            res_output[1, ] = combine_residuals(method='median', 
+            res_output[1, ] = combine_residuals(method='median',
                                                 res_rot=res_rot,
                                                 lam=self.m_scales,
-                                                processing_type = self.m_processing_type)
+                                                processing_type=self.m_processing_type)
 
         if self.m_requirements[2]:
             res_output[2, ] = combine_residuals(method='weighted',
@@ -186,7 +186,7 @@ class PcaTaskProcessor(TaskProcessor):
                                                 residuals=residuals,
                                                 angles=self.m_angles,
                                                 lam=self.m_scales,
-                                                processing_type = self.m_processing_type)
+                                                processing_type=self.m_processing_type)
 
         if self.m_requirements[3]:
             res_output[3, ] = combine_residuals(method='stim',
@@ -194,18 +194,17 @@ class PcaTaskProcessor(TaskProcessor):
                                                 residuals=residuals,
                                                 angles=self.m_angles,
                                                 lam=self.m_scales,
-                                                processing_type = self.m_processing_type)
+                                                processing_type=self.m_processing_type)
 
         if self.m_requirements[4]:
-            res_output[4, ] = combine_residuals(method='clipped', 
+            res_output[4, ] = combine_residuals(method='clipped',
                                                 res_rot=res_rot,
                                                 lam=self.m_scales,
-                                                processing_type = self.m_processing_type)
+                                                processing_type=self.m_processing_type)
 
         sys.stdout.write('.')
         sys.stdout.flush()
 
-        
         return TaskResult(res_output, tmp_task.m_job_parameter[0])
 
 
@@ -290,27 +289,27 @@ class PcaTaskWriter(TaskWriter):
 
                 if self.m_requirements[0]:
                     self.m_mean_out_port._check_status_and_activate()
-                    self.m_mean_out_port[pca_nr*ll : (pca_nr+1)*ll , :, :] = next_result.m_data_array[0, :, :, :]
+                    self.m_mean_out_port[pca_nr*ll:(pca_nr+1)*ll, :, :] = next_result.m_data_array[0, :, :, :]
                     self.m_mean_out_port.close_port()
 
                 if self.m_requirements[1]:
                     self.m_median_out_port._check_status_and_activate()
-                    self.m_median_out_port[pca_nr*ll : (pca_nr+1)*ll , :, :] = next_result.m_data_array[1, :, :, :]
+                    self.m_median_out_port[pca_nr*ll:(pca_nr+1)*ll, :, :] = next_result.m_data_array[1, :, :, :]
                     self.m_median_out_port.close_port()
 
                 if self.m_requirements[2]:
                     self.m_weighted_out_port._check_status_and_activate()
-                    self.m_weighted_out_port[pca_nr*ll : (pca_nr+1)*ll , :, :] = next_result.m_data_array[2, :, :, :]
+                    self.m_weighted_out_port[pca_nr*ll:(pca_nr+1)*ll, :, :] = next_result.m_data_array[2, :, :, :]
                     self.m_weighted_out_port.close_port()
 
                 if self.m_requirements[3]:
                     self.m_stim_out_port._check_status_and_activate()
-                    self.m_stim_out_port[pca_nr*ll : (pca_nr+1)*ll , :, :] = next_result.m_data_array[3, :, :, :]
+                    self.m_stim_out_port[pca_nr*ll:(pca_nr+1)*ll, :, :] = next_result.m_data_array[3, :, :, :]
                     self.m_stim_out_port.close_port()
 
                 if self.m_requirements[4]:
                     self.m_clip_out_port._check_status_and_activate()
-                    self.m_clip_out_port[pca_nr*ll : (pca_nr+1)*ll , :, :] = next_result.m_data_array[4, :, :, :]
+                    self.m_clip_out_port[pca_nr*ll:(pca_nr+1)*ll, :, :] = next_result.m_data_array[4, :, :, :]
                     self.m_clip_out_port.close_port()
 
             self.m_result_queue.task_done()

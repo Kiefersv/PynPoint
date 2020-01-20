@@ -224,7 +224,7 @@ def fake_planet(images: np.ndarray,
     ang = np.radians(position[1] + 90. - parang)
 
     flux_ratio = 10. ** (-magnitude / 2.5)
-    
+
     if magnitude is np.ndarray:
         for i, fl in enumerate(flux_ratio):
             psf[i] = psf[i]*fl
