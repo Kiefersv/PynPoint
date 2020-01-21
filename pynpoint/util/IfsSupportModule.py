@@ -9,15 +9,15 @@ Pypeline support funciton to support IFS handling
 import sys
 
 from typing import List, Dict
-from uncertainties import ufloat
+#from uncertainties import ufloat
 
 
 from pynpoint.core.pypeline import Pypeline
 from pynpoint.processing.badpixel import BadPixelSigmaFilterModule, BadPixelMapModule, \
                                          ReplaceBadPixelsModule
-from pynpoint.processing.centering import WaffleCenteringModule, \
-                                          StarAlignmentModule, FitCenterModule, \
+from pynpoint.processing.centering import StarAlignmentModule, FitCenterModule, \
                                           ShiftImagesModule
+#                                          WaffleCenteringModule
 from pynpoint.processing.psfpreparation import AngleCalculationModule, SortParangModule, \
                                                PSFpreparationModule
 from pynpoint.processing.stacksubset import DerotateAndStackModule, CombineTagsModule
@@ -25,10 +25,11 @@ from pynpoint.processing.psfsubtraction import PcaPsfSubtractionModule, Classica
 from pynpoint.processing.resizing import CropImagesModule
 from pynpoint.processing.frameselection import SelectGivenAttributesModule
 from pynpoint.processing.extract import StarExtractionModule
-from pynpoint.processing.fluxposition import SimplexMinimizationModule, FakePlanetModule
+#from pynpoint.processing.fluxposition import SimplexMinimizationModule, FakePlanetModule
 from pynpoint.readwrite.fitswriting import FitsWritingModule
 from pynpoint.readwrite.fitsreading import FitsReadingModule
 
+# Will be added with additional updates
 #from pynpoint.processing.ifs import IfsScalingModule, CenteringReductionModule, FrameClipModule
 #from pynpoint.processing.photometry import SdiAperturePhotometryModule
 
@@ -76,11 +77,9 @@ def IfsSupportModule(image_in_tag: List[str],
     """
 
     # ----- Step1: splitting datasets
-    """
-    The splitting step takes information from either the path_lam or path_in and reads
-    out the LAMBDA information to set the Modules. If the input_tags were already split,
-    this step can be skiped to save computaion time.
-    """
+#    The splitting step takes information from either the path_lam or path_in and reads
+#    out the LAMBDA information to set the Modules. If the input_tags were already split,
+#    this step can be skiped to save computaion time.
 
     sys.stdout.write('Running IfsSupportModdule .... ')
     sys.stdout.flush()
@@ -121,11 +120,9 @@ def IfsSupportModule(image_in_tag: List[str],
                 pipe.add_module(mods)
 
     # ----- Step2: Add modules to pipeline
-    """
-    During this step, the modules are added to the Pypeline in order of their input.
-    Not all modules are yet supported. It is important to mention that this step is
-    entierly before the pipeline is actualy run.
-    """
+#    During this step, the modules are added to the Pypeline in order of their input.
+#    Not all modules are yet supported. It is important to mention that this step is
+#    entierly before the pipeline is actualy run.
 
     j = 0
     for mod in mod_args:
@@ -157,41 +154,41 @@ def IfsSupportModule(image_in_tag: List[str],
                                                  sigma=modi['sigma'],
                                                  iterate=modi['iterate'])
 
-            elif mod_args[j]['module'] == 'WaffleCenteringModule':
-
-                modi['name_in'] = mod_args[j]['name_in'] + lamj
-                modi['image_in_tag'] = mod_args[j]['image_in_tag'] + lamj
-                modi['center_in_tag'] = mod_args[j]['center_in_tag'] + lamj
-                modi['image_out_tag'] = mod_args[j]['image_out_tag'] + lamj
-                if 'l_min' not in modi.keys():
-                    modi['l_min'] = None
-                if 'size' not in modi.keys():
-                    modi['size'] = None
-                if 'size' not in modi.keys():
-                    modi['size'] = None
-                if 'pattern' not in modi.keys():
-                    modi['pattern'] = None
-                if 'center' not in modi.keys():
-                    modi['center'] = 45
-                if 'angle' not in modi.keys():
-                    modi['angle'] = 0
-                if 'sigma' not in modi.keys():
-                    modi['sigma'] = 0.06
-                if 'dither' not in modi.keys():
-                    modi['dither'] = False
-
-                modu = WaffleCenteringModule(name_in=modi['name_in'],
-                                             image_in_tag=modi['image_in_tag'],
-                                             center_in_tag=modi['center_in_tag'],
-                                             image_out_tag=modi['image_out_tag'],
-                                             radius=modi['radius'],
-                                             l_min=modi['l_min'],
-                                             size=modi['size'],
-                                             pattern=modi['pattern'],
-                                             center=modi['center'],
-                                             angle=modi['angle'],
-                                             sigma=modi['sigma'],
-                                             dither=modi['dither'])
+#            elif mod_args[j]['module'] == 'WaffleCenteringModule':
+#
+#                modi['name_in'] = mod_args[j]['name_in'] + lamj
+#                modi['image_in_tag'] = mod_args[j]['image_in_tag'] + lamj
+#                modi['center_in_tag'] = mod_args[j]['center_in_tag'] + lamj
+#                modi['image_out_tag'] = mod_args[j]['image_out_tag'] + lamj
+#                if 'l_min' not in modi.keys():
+#                    modi['l_min'] = None
+#                if 'size' not in modi.keys():
+#                    modi['size'] = None
+#                if 'size' not in modi.keys():
+#                    modi['size'] = None
+#                if 'pattern' not in modi.keys():
+#                    modi['pattern'] = None
+#                if 'center' not in modi.keys():
+#                    modi['center'] = 45
+#                if 'angle' not in modi.keys():
+#                    modi['angle'] = 0
+#                if 'sigma' not in modi.keys():
+#                    modi['sigma'] = 0.06
+#                if 'dither' not in modi.keys():
+#                    modi['dither'] = False
+#
+#                modu = WaffleCenteringModule(name_in=modi['name_in'],
+#                                             image_in_tag=modi['image_in_tag'],
+#                                             center_in_tag=modi['center_in_tag'],
+#                                             image_out_tag=modi['image_out_tag'],
+#                                             radius=modi['radius'],
+#                                             l_min=modi['l_min'],
+#                                             size=modi['size'],
+#                                             pattern=modi['pattern'],
+#                                             center=modi['center'],
+#                                             angle=modi['angle'],
+#                                             sigma=modi['sigma'],
+#                                             dither=modi['dither'])
 
             elif mod_args[j]['module'] == 'FitsWritingModule':
 
@@ -267,24 +264,24 @@ def IfsSupportModule(image_in_tag: List[str],
                                               size=modi['size'],
                                               replace=modi['replace'])
 
-            elif mod_args[j]['module'] == 'IfsScalingModule':
-
-                modi['name_in'] = mod_args[j]['name_in'] + lamj
-                modi['image_in_tag'] = mod_args[j]['image_in_tag'] + lamj
-                modi['image_out_tag'] = mod_args[j]['image_out_tag'] + lamj
-                if 'scaling' not in modi.keys():
-                    modi['scaling'] = (1.0, 1.0, 1.0)
-                if 'angle' not in modi.keys():
-                    modi['angle'] = 0
-                if 'pixscale' not in modi.keys():
-                    modi['pixscale'] = False
-
-                modu = IfsScalingModule(name_in=modi['name_in'],
-                                        image_in_tag=modi['image_in_tag'],
-                                        image_out_tag=modi['image_out_tag'],
-                                        scaling=modi['scaling'],
-                                        angle=modi['angle'],
-                                        pixscale=modi['pixscale'])
+#            elif mod_args[j]['module'] == 'IfsScalingModule':
+#
+#                modi['name_in'] = mod_args[j]['name_in'] + lamj
+#                modi['image_in_tag'] = mod_args[j]['image_in_tag'] + lamj
+#                modi['image_out_tag'] = mod_args[j]['image_out_tag'] + lamj
+#                if 'scaling' not in modi.keys():
+#                    modi['scaling'] = (1.0, 1.0, 1.0)
+#                if 'angle' not in modi.keys():
+#                    modi['angle'] = 0
+#                if 'pixscale' not in modi.keys():
+#                    modi['pixscale'] = False
+#
+#                modu = IfsScalingModule(name_in=modi['name_in'],
+#                                        image_in_tag=modi['image_in_tag'],
+#                                        image_out_tag=modi['image_out_tag'],
+#                                        scaling=modi['scaling'],
+#                                        angle=modi['angle'],
+#                                        pixscale=modi['pixscale'])
 
             elif mod_args[j]['module'] == 'SortParangModule':
 
@@ -377,17 +374,17 @@ def IfsSupportModule(image_in_tag: List[str],
                                             cent_size=modi['cent_size'],
                                             edge_size=modi['edge_size'])
 
-            elif mod_args[j]['module'] == 'CenteringReductionModule':
-
-                modi['name_in'] = mod_args[j]['name_in'] + lamj
-                modi['image_in_tag'] = mod_args[j]['image_in_tag'] + lamj
-                modi['center_in_tag'] = mod_args[j]['center_in_tag'] + lamj
-                modi['center_out_tag'] = mod_args[j]['center_out_tag'] + lamj
-
-                modu = CenteringReductionModule(name_in=modi['name_in'],
-                                                image_in_tag=modi['image_in_tag'],
-                                                center_in_tag=modi['center_in_tag'],
-                                                center_out_tag=modi['center_out_tag'])
+#            elif mod_args[j]['module'] == 'CenteringReductionModule':
+#
+#                modi['name_in'] = mod_args[j]['name_in'] + lamj
+#                modi['image_in_tag'] = mod_args[j]['image_in_tag'] + lamj
+#                modi['center_in_tag'] = mod_args[j]['center_in_tag'] + lamj
+#                modi['center_out_tag'] = mod_args[j]['center_out_tag'] + lamj
+#
+#                modu = CenteringReductionModule(name_in=modi['name_in'],
+#                                                image_in_tag=modi['image_in_tag'],
+#                                                center_in_tag=modi['center_in_tag'],
+#                                                center_out_tag=modi['center_out_tag'])
 
             elif mod_args[j]['module'] == 'StarExtractionModule':
 
@@ -488,112 +485,112 @@ def IfsSupportModule(image_in_tag: List[str],
                                          shift_xy=modi['shift_xy'],
                                          interpolation=modi['interpolation'])
 
-            elif mod_args[j]['module'] == 'SdiAperturePhotometryModule':
+#            elif mod_args[j]['module'] == 'SdiAperturePhotometryModule':
+#
+#                modi['name_in'] = mod_args[j]['name_in'] + lamj
+#                modi['image_in_tag'] = mod_args[j]['image_in_tag'] + lamj
+#                modi['psf_in_tag'] = mod_args[j]['psf_in_tag'] + lamj
+#                modi['flux_position_tag'] = mod_args[j]['flux_position_tag'] + lamj
+#                if 'flux_filter' not in modi.keys():
+#                    modi['flux_filter'] = 'ND_0.0'
+#                if 'psf_scaling' not in modi.keys():
+#                    modi['psf_scaling'] = 1
+#                if 'pixscale_corr' not in modi.keys():
+#                    modi['pixscale_corr'] = ufloat(0.01227, 0.00002)
+#                if 'TN' not in modi.keys():
+#                    modi['TN'] = ufloat(-1.75, 0.1)
+#                if 'cutout_size' not in modi.keys():
+#                    modi['cutout_size'] = 21
+#                if 'fit_each_image' not in modi.keys():
+#                    modi['fit_each_image'] = False
+#                if 'aperture_size' not in modi.keys():
+#                    modi['aperture_size'] = 'fwhm'
+#
+#                modu = SdiAperturePhotometryModule(name_in=modi['name_in'],
+#                                                   image_in_tag=modi['image_in_tag'],
+#                                                   psf_in_tag=modi['psf_in_tag'],
+#                                                   flux_position_tag=modi['flux_position_tag'],
+#                                                   rough_position=modi['rough_position'],
+#                                                   flux_filter=modi['flux_filter'],
+#                                                   psf_scaling=modi['psf_scaling'],
+#                                                   pixscale_corr=modi['pixscale_corr'],
+#                                                   TN=modi['TN'],
+#                                                   cutout_size=modi['cutout_size'],
+#                                                   fit_each_image=modi['fit_each_image'],
+#                                                   aperture_size=modi['aperture_size'])
 
-                modi['name_in'] = mod_args[j]['name_in'] + lamj
-                modi['image_in_tag'] = mod_args[j]['image_in_tag'] + lamj
-                modi['psf_in_tag'] = mod_args[j]['psf_in_tag'] + lamj
-                modi['flux_position_tag'] = mod_args[j]['flux_position_tag'] + lamj
-                if 'flux_filter' not in modi.keys():
-                    modi['flux_filter'] = 'ND_0.0'
-                if 'psf_scaling' not in modi.keys():
-                    modi['psf_scaling'] = 1
-                if 'pixscale_corr' not in modi.keys():
-                    modi['pixscale_corr'] = ufloat(0.01227, 0.00002)
-                if 'TN' not in modi.keys():
-                    modi['TN'] = ufloat(-1.75, 0.1)
-                if 'cutout_size' not in modi.keys():
-                    modi['cutout_size'] = 21
-                if 'fit_each_image' not in modi.keys():
-                    modi['fit_each_image'] = False
-                if 'aperture_size' not in modi.keys():
-                    modi['aperture_size'] = 'fwhm'
+#            elif mod_args[j]['module'] == 'SimplexMinimizationModule':
+#
+#                modi['name_in'] = mod_args[j]['name_in'] + lamj
+#                modi['image_in_tag'] = mod_args[j]['image_in_tag'] + lamj
+#                modi['psf_in_tag'] = mod_args[j]['psf_in_tag'] + lamj
+#                modi['res_out_tag'] = mod_args[j]['res_out_tag'] + lamj
+#                modi['flux_position_tag'] = mod_args[j]['flux_position_tag'] + lamj
+#                if 'psf_scaling' not in modi.keys():
+#                    modi['psf_scaling'] = None
+#                if 'flux_filter' not in modi.keys():
+#                    modi['flux_filter'] = 'ND_0.0'
+#                if 'merit' not in modi.keys():
+#                    modi['merit'] = 'hessian'
+#                if 'aperture' not in modi.keys():
+#                    modi['aperture'] = 0.1
+#                if 'sigma' not in modi.keys():
+#                    modi['sigma'] = 0.0
+#                if 'tolerance' not in modi.keys():
+#                    modi['tolerance'] = 0.1
+#                if 'pca_number' not in modi.keys():
+#                    modi['pca_number'] = 10
+#                if 'cent_size' not in modi.keys():
+#                    modi['cent_size'] = None
+#                if 'edge_size' not in modi.keys():
+#                    modi['edge_size'] = None
+#                if 'extra_rot' not in modi.keys():
+#                    modi['extra_rot'] = 0.0
+#                if 'residuals' not in modi.keys():
+#                    modi['residuals'] = 'median'
+#                if 'reference_in_tag' not in modi.keys():
+#                    modi['reference_in_tag'] = None
+#                if modi['reference_in_tag'] is not None:
+#                    modi['reference_in_tag'] = mod_args[j]['reference_in_tag'] + lamj
+#                if 'processing_type' not in modi.keys():
+#                    modi['processing_type'] = 'Cadi'
+#
+#                modu = SimplexMinimizationModule(name_in=modi['name_in'],
+#                                                 image_in_tag=modi['image_in_tag'],
+#                                                 psf_in_tag=modi['psf_in_tag'],
+#                                                 res_out_tag=modi['res_out_tag'],
+#                                                 flux_position_tag=modi['flux_position_tag'],
+#                                                 position=modi['position'],
+#                                                 magnitude=modi['magnitude'],
+#                                                 psf_scaling=modi['psf_scaling'],
+#                                                 flux_filter=modi['flux_filter'],
+#                                                 merit=modi['merit'],
+#                                                 aperture=modi['aperture'],
+#                                                 sigma=modi['sigma'],
+#                                                 tolerance=modi['tolerance'],
+#                                                 pca_number=modi['pca_number'],
+#                                                 cent_size=modi['cent_size'],
+#                                                 edge_size=modi['edge_size'],
+#                                                 extra_rot=modi['extra_rot'],
+#                                                 residuals=modi['residuals'],
+#                                                 reference_in_tag=modi['reference_in_tag'],
+#                                                 processing_type=modi['processing_type'])
 
-                modu = SdiAperturePhotometryModule(name_in=modi['name_in'],
-                                                   image_in_tag=modi['image_in_tag'],
-                                                   psf_in_tag=modi['psf_in_tag'],
-                                                   flux_position_tag=modi['flux_position_tag'],
-                                                   rough_position=modi['rough_position'],
-                                                   flux_filter=modi['flux_filter'],
-                                                   psf_scaling=modi['psf_scaling'],
-                                                   pixscale_corr=modi['pixscale_corr'],
-                                                   TN=modi['TN'],
-                                                   cutout_size=modi['cutout_size'],
-                                                   fit_each_image=modi['fit_each_image'],
-                                                   aperture_size=modi['aperture_size'])
-
-            elif mod_args[j]['module'] == 'SimplexMinimizationModule':
-
-                modi['name_in'] = mod_args[j]['name_in'] + lamj
-                modi['image_in_tag'] = mod_args[j]['image_in_tag'] + lamj
-                modi['psf_in_tag'] = mod_args[j]['psf_in_tag'] + lamj
-                modi['res_out_tag'] = mod_args[j]['res_out_tag'] + lamj
-                modi['flux_position_tag'] = mod_args[j]['flux_position_tag'] + lamj
-                if 'psf_scaling' not in modi.keys():
-                    modi['psf_scaling'] = None
-                if 'flux_filter' not in modi.keys():
-                    modi['flux_filter'] = 'ND_0.0'
-                if 'merit' not in modi.keys():
-                    modi['merit'] = 'hessian'
-                if 'aperture' not in modi.keys():
-                    modi['aperture'] = 0.1
-                if 'sigma' not in modi.keys():
-                    modi['sigma'] = 0.0
-                if 'tolerance' not in modi.keys():
-                    modi['tolerance'] = 0.1
-                if 'pca_number' not in modi.keys():
-                    modi['pca_number'] = 10
-                if 'cent_size' not in modi.keys():
-                    modi['cent_size'] = None
-                if 'edge_size' not in modi.keys():
-                    modi['edge_size'] = None
-                if 'extra_rot' not in modi.keys():
-                    modi['extra_rot'] = 0.0
-                if 'residuals' not in modi.keys():
-                    modi['residuals'] = 'median'
-                if 'reference_in_tag' not in modi.keys():
-                    modi['reference_in_tag'] = None
-                if modi['reference_in_tag'] is not None:
-                    modi['reference_in_tag'] = mod_args[j]['reference_in_tag'] + lamj
-                if 'processing_type' not in modi.keys():
-                    modi['processing_type'] = 'Cadi'
-
-                modu = SimplexMinimizationModule(name_in=modi['name_in'],
-                                                 image_in_tag=modi['image_in_tag'],
-                                                 psf_in_tag=modi['psf_in_tag'],
-                                                 res_out_tag=modi['res_out_tag'],
-                                                 flux_position_tag=modi['flux_position_tag'],
-                                                 position=modi['position'],
-                                                 magnitude=modi['magnitude'],
-                                                 psf_scaling=modi['psf_scaling'],
-                                                 flux_filter=modi['flux_filter'],
-                                                 merit=modi['merit'],
-                                                 aperture=modi['aperture'],
-                                                 sigma=modi['sigma'],
-                                                 tolerance=modi['tolerance'],
-                                                 pca_number=modi['pca_number'],
-                                                 cent_size=modi['cent_size'],
-                                                 edge_size=modi['edge_size'],
-                                                 extra_rot=modi['extra_rot'],
-                                                 residuals=modi['residuals'],
-                                                 reference_in_tag=modi['reference_in_tag'],
-                                                 processing_type=modi['processing_type'])
-
-            elif mod_args[j]['module'] == 'FrameClipModule':
-
-                modi['name_in'] = mod_args[j]['name_in'] + lamj
-                modi['image_in_tag'] = mod_args[j]['image_in_tag'] + lamj
-                modi['image_out_tag'] = mod_args[j]['image_out_tag'] + lamj
-                if 'clip_length' not in modi.keys():
-                    modi['clip_length'] = 1
-                if 'clip_mode' not in modi.keys():
-                    modi['clip_mode'] = 'end'
-
-                modu = FrameClipModule(name_in=modi['name_in'],
-                                       image_in_tag=modi['image_in_tag'],
-                                       image_out_tag=modi['image_out_tag'],
-                                       clip_length=modi['clip_length'],
-                                       clip_mode=modi['clip_mode'])
+#            elif mod_args[j]['module'] == 'FrameClipModule':
+#
+#                modi['name_in'] = mod_args[j]['name_in'] + lamj
+#                modi['image_in_tag'] = mod_args[j]['image_in_tag'] + lamj
+#                modi['image_out_tag'] = mod_args[j]['image_out_tag'] + lamj
+#                if 'clip_length' not in modi.keys():
+#                    modi['clip_length'] = 1
+#                if 'clip_mode' not in modi.keys():
+#                    modi['clip_mode'] = 'end'
+#
+#                modu = FrameClipModule(name_in=modi['name_in'],
+#                                       image_in_tag=modi['image_in_tag'],
+#                                       image_out_tag=modi['image_out_tag'],
+#                                       clip_length=modi['clip_length'],
+#                                       clip_mode=modi['clip_mode'])
 
             elif mod_args[j]['module'] == 'PcaPsfSubtractionModule':
 
@@ -651,25 +648,25 @@ def IfsSupportModule(image_in_tag: List[str],
                                                subtract_mean=modi['subtract_mean'],
                                                processing_type=modi['processing_type'])
 
-            elif mod_args[j]['module'] == 'FakePlanetModule':
-
-                modi['name_in'] = mod_args[j]['name_in'] + lamj
-                modi['image_in_tag'] = mod_args[j]['image_in_tag'] + lamj
-                modi['psf_in_tag'] = mod_args[j]['psf_in_tag'] + lamj
-                modi['image_out_tag'] = mod_args[j]['image_out_tag'] + lamj
-                if 'psf_scaling' not in modi.keys():
-                    modi['psf_scaling'] = 1.
-                if 'interpolation' not in modi.keys():
-                    modi['clip_mode'] = 'spline'
-
-                modu = FakePlanetModule(name_in=modi['name_in'],
-                                        image_in_tag=modi['image_in_tag'],
-                                        psf_in_tag=modi['psf_in_tag'],
-                                        image_out_tag=modi['image_out_tag'],
-                                        position=modi['position'],
-                                        magnitude=modi['magnitude'],
-                                        psf_scaling=modi['psf_scaling'],
-                                        interpolation=modi['interpolation'])
+#            elif mod_args[j]['module'] == 'FakePlanetModule':
+#
+#                modi['name_in'] = mod_args[j]['name_in'] + lamj
+#                modi['image_in_tag'] = mod_args[j]['image_in_tag'] + lamj
+#                modi['psf_in_tag'] = mod_args[j]['psf_in_tag'] + lamj
+#                modi['image_out_tag'] = mod_args[j]['image_out_tag'] + lamj
+#                if 'psf_scaling' not in modi.keys():
+#                    modi['psf_scaling'] = 1.
+#                if 'interpolation' not in modi.keys():
+#                    modi['clip_mode'] = 'spline'
+#
+#                modu = FakePlanetModule(name_in=modi['name_in'],
+#                                        image_in_tag=modi['image_in_tag'],
+#                                        psf_in_tag=modi['psf_in_tag'],
+#                                        image_out_tag=modi['image_out_tag'],
+#                                        position=modi['position'],
+#                                        magnitude=modi['magnitude'],
+#                                        psf_scaling=modi['psf_scaling'],
+#                                        interpolation=modi['interpolation'])
 
             else:
                 raise ValueError('The module '+mod_args[j]['module']+' is not implemented')
@@ -680,10 +677,8 @@ def IfsSupportModule(image_in_tag: List[str],
         j += 1
 
     # ----- Step3: Recombine all splitted tags
-    """
-    Recombines all image_out_tag after recombining them. The output_tag is called
-    WEOUT_ before the image tag to avoid ambiguty.
-    """
+#    Recombines all image_out_tag after recombining them. The output_tag is called
+#    WEOUT_ before the image tag to avoid ambiguty.
 
     for imgs in image_out_tag:
 

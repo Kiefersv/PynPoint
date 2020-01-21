@@ -9,11 +9,12 @@ Created on Wed Nov 13 08:27:30 2019
 
 import os
 import math
-
-import numpy as np
 import time
 
 from typing import Tuple, Union
+
+import numpy as np
+
 from typeguard import typechecked
 from sklearn.decomposition import PCA
 from scipy.ndimage import rotate
@@ -145,8 +146,8 @@ def spec_contrast_limit(path_images: str,
     # Determine the noise level
     t_noise = np.zeros_like(noise[:, 0, 0])
 
-    for n, no in enumerate(noise):
-        _, t_noise[n], _, _ = false_alarm(image=no,
+    for i, noii in enumerate(noise):
+        _, t_noise[i], _, _ = false_alarm(image=noii,
                                           x_pos=yx_fake[1],
                                           y_pos=yx_fake[0],
                                           size=aperture,
@@ -156,23 +157,23 @@ def spec_contrast_limit(path_images: str,
     im_center = center_subpixel(images)
 
     # Measure the flux of the star
-    ll = noise.shape[0]
+    noi_shape = noise.shape[0]
     lam_splites = np.sort(list(set(lambdas)))
     mag = np.zeros((len(psf)))
-    flux_in = np.zeros((ll))
-    star = np.zeros((ll))
+    flux_in = np.zeros((noi_shape))
+    star = np.zeros((noi_shape))
 
     ap_phot = CircularAperture((im_center[1], im_center[0]), aperture)
 
-    for f in range(ll):
-        mask_f = (lam_splites[f] == lambdas)
+    for i in range(noi_shape):
+        mask_f = (lam_splites[i] == lambdas)
         psf_median = np.median(psf[mask_f], axis=0)
         phot_table = aperture_photometry(psf_median, ap_phot, method='exact')
-        star[f] = phot_table['aperture_sum'][0]
+        star[i] = phot_table['aperture_sum'][0]
 
         # Magnitude of the injected planet
-        flux_in[f] = snr_inject*t_noise[f]
-        mag[mask_f] = -2.5*math.log10(flux_in[f]/star[f])
+        flux_in[i] = snr_inject*t_noise[i]
+        mag[mask_f] = -2.5*math.log10(flux_in[i]/star[i])
 
     # Inject the fake planet
     fake = fake_planet(images=images,
@@ -203,8 +204,8 @@ def spec_contrast_limit(path_images: str,
 
     # Measure the flux of the fake planet
     flux_out = np.zeros((im_res.shape[0]))
-    for i, im in enumerate(im_res):
-        flux_out[i], _, _, _ = false_alarm(image=im,
+    for i, imres in enumerate(im_res):
+        flux_out[i], _, _, _ = false_alarm(image=imres,
                                            x_pos=yx_fake[1],
                                            y_pos=yx_fake[0],
                                            size=aperture,
@@ -218,11 +219,11 @@ def spec_contrast_limit(path_images: str,
 
     # The flux_out can be negative, for example if the aperture includes self-subtraction regions
 
-    for c, con in enumerate(contrast):
+    for i, con in enumerate(contrast):
         if con > 0.:
-            contrast[c] = -2.5*math.log10(con)
+            contrast[i] = -2.5*math.log10(con)
         else:
-            contrast[c] = np.nan
+            contrast[i] = np.nan
 
     # assign positions with same shape as contrast
     pos_0 = np.ones_like(contrast) * position[0]
@@ -404,7 +405,7 @@ def postprocessor(images: np.ndarray,
     # Wavelength specific adi
     elif processing_type in ['Wadi', 'Tadi']:
 
-        for ii, lam_i in enumerate(lam_splits):
+        for _, lam_i in enumerate(lam_splits):
             mask_i = (scales == lam_i)
             res_raw_i, res_rot_i = pca_psf_subtraction(images=ims[mask_i]*mask,
                                                        angles=parang[mask_i],
@@ -421,7 +422,7 @@ def postprocessor(images: np.ndarray,
     elif processing_type in ['Wsdi', 'Tsdi']:
 
         im_scaled, _, _ = sdi_scaling(ims, scales)
-        for ii, tim_i in enumerate(tim_splits):
+        for _, tim_i in enumerate(tim_splits):
             mask_i = (parang == tim_i)
             res_raw_i, res_rot_i = pca_psf_subtraction(images=im_scaled[mask_i]*mask,
                                                        angles=parang[mask_i],
@@ -451,7 +452,7 @@ def postprocessor(images: np.ndarray,
         res_raw_int = np.zeros_like(res_raw)
 
         im_scaled, _, _ = sdi_scaling(ims, scales)
-        for ii, tim_i in enumerate(tim_splits):
+        for _, tim_i in enumerate(tim_splits):
             mask_i = (parang == tim_i)
             res_raw_i, _ = pca_psf_subtraction(images=im_scaled[mask_i]*mask,
                                                angles=np.array([None]),
@@ -463,7 +464,7 @@ def postprocessor(images: np.ndarray,
 
             res_raw_int[mask_i] = res_raw_i
 
-        for jj, lam_j in enumerate(lam_splits):
+        for _, lam_j in enumerate(lam_splits):
             mask_j = (scales == lam_j)
             res_raw_i, res_rot_i = pca_psf_subtraction(images=res_raw_int[mask_j]*mask,
                                                        angles=parang[mask_j],
@@ -480,7 +481,7 @@ def postprocessor(images: np.ndarray,
     elif processing_type in ['Wasp', 'Tasp']:
         res_raw_int = np.zeros_like(res_raw)
 
-        for jj, lam_j in enumerate(lam_splits):
+        for _, lam_j in enumerate(lam_splits):
             mask_j = (scales == lam_j)
             res_raw_i, _ = pca_psf_subtraction(images=ims[mask_j]*mask,
                                                angles=np.array([None]),
@@ -493,7 +494,7 @@ def postprocessor(images: np.ndarray,
             res_raw_int[mask_j] = res_raw_i
 
         im_scaled, _, _ = sdi_scaling(res_raw_int, scales)
-        for ii, tim_i in enumerate(tim_splits):
+        for _, tim_i in enumerate(tim_splits):
             mask_i = (parang == tim_i)
             res_raw_i, res_rot_i = pca_psf_subtraction(images=im_scaled[mask_i]*mask,
                                                        angles=parang[mask_i],
@@ -508,7 +509,7 @@ def postprocessor(images: np.ndarray,
 
     else:
         # Error message if unknown processing type
-        st = 'Processing type ' + processing_type + ' is not supported'
-        raise ValueError(st)
+        stout = 'Processing type ' + processing_type + ' is not supported'
+        raise ValueError(stout)
 
     return res_raw, res_rot
