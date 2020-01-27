@@ -251,7 +251,10 @@ def create_star_data(path: str,
                      exp_no: List[int] = [1, 2, 3, 4],
                      ndit: int = 10,
                      nframes: int = 10,
-                     noise: bool = True) -> None:
+                     noise: bool = True,
+                     exp_time: float = 16,
+                     do_ifs: bool = False,
+                     ifs_wav: float = 39) -> None:
     """
     Create data with a stellar PSF and Gaussian noise.
 
@@ -279,6 +282,9 @@ def create_star_data(path: str,
         Number of frames.
     noise : bool
         Adding noise to the images.
+    ifs : np.array
+        Creating IFS data with given wavelenghts. List contains:
+        [First Wavelength, Delta Wavelength, Number of Wavelengths, File Nr]
 
     Returns
     -------
@@ -290,6 +296,24 @@ def create_star_data(path: str,
 
     if not os.path.exists(path):
         os.makedirs(path)
+
+    if do_ifs is True:
+        exp_no = exp_no * nframes
+        nframes = ifs_wav
+        new_x0 = []
+        new_y0 = []
+        parang_start_new = []
+        parang_end_new = []
+        for k, _ in enumerate(x0):
+            for l in range(nframes):
+                new_x0.append(x0[k])
+                new_y0.append(y0[k])
+                parang_start_new.append(parang_start[k])
+                parang_end_new.append(parang_end[k])
+        x0 = new_x0
+        y0 = new_y0
+        parang_start = parang_start_new
+        parang_end = parang_end_new
 
     np.random.seed(1)
 
@@ -316,6 +340,8 @@ def create_star_data(path: str,
         header['HIERARCH ESO ADA POSANG END'] = parang_end[j]
         header['HIERARCH ESO SEQ CUMOFFSETX'] = 'None'
         header['HIERARCH ESO SEQ CUMOFFSETY'] = 'None'
+        header['HIERARCH ESO DET SEQ1 DIT'] = exp_time
+
         hdu.data = image
         hdu.writeto(os.path.join(path, 'image'+str(j+1).zfill(2)+'.fits'))
 

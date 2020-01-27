@@ -488,9 +488,6 @@ class AngleCalculationModule(ProcessingModule):
                           'selection should be applied after the parallactic angles are '
                           'calculated.')
 
-        if self.m_instrument == 'SPHERE/IFS':
-            warnings.warn('AngleCalculationModule has not been tested for SPHERE/IFS data.')
-
         if self.m_instrument in ('SPHERE/IRDIS', 'SPHERE/IFS'):
 
             if self._m_config_port.get_attribute('RA') != 'ESO INS4 DROT2 RA':
