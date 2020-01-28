@@ -8,12 +8,11 @@ from pynpoint.core.pypeline import Pypeline
 from pynpoint.readwrite.fitsreading import FitsReadingModule
 from pynpoint.processing.psfpreparation import PSFpreparationModule, AngleInterpolationModule, \
                                                AngleCalculationModule, SDIpreparationModule
-from pynpoint.util.tests import create_config, create_star_data, remove_test_data
+from pynpoint.util.tests import create_config, create_star_data, create_ifs_data, remove_test_data
 
 warnings.simplefilter('always')
 
 limit = 1e-10
-nframes = 10
 
 
 class TestPsfPreparation:
@@ -22,11 +21,9 @@ class TestPsfPreparation:
 
         self.test_dir = os.path.dirname(__file__) + '/'
 
-        create_star_data(path=self.test_dir+'prep',
-                         do_ifs=False)
-        create_star_data(path=self.test_dir+'prep_ifs',
-                         nframes=nframes,
-                         do_ifs=True)
+        create_star_data(path=self.test_dir+'prep')
+        create_ifs_data(path=self.test_dir+'prep_ifs')
+
         create_config(self.test_dir+'PynPoint_config.ini')
 
         self.pipeline = Pypeline(self.test_dir, self.test_dir, self.test_dir)
@@ -41,19 +38,25 @@ class TestPsfPreparation:
                                    image_tag='read',
                                    input_dir=self.test_dir+'prep')
 
-        module_ifs = FitsReadingModule(name_in='read_ifs',
-                                       image_tag='read_ifs',
-                                       input_dir=self.test_dir+'prep_ifs')
-
         self.pipeline.add_module(module)
-        self.pipeline.add_module(module_ifs)
         self.pipeline.run_module('read')
-        self.pipeline.run_module('read_ifs')
 
         data = self.pipeline.get_data('read')
         assert np.allclose(data[0, 25, 25], 2.0926464668090656e-05, rtol=limit, atol=0.)
         assert np.allclose(np.mean(data), 0.00010029494781738066, rtol=limit, atol=0.)
         assert data.shape == (40, 100, 100)
+
+        module = FitsReadingModule(name_in='read_ifs',
+                                   image_tag='read_ifs',
+                                   input_dir=self.test_dir+'prep_ifs')
+
+        self.pipeline.add_module(module)
+        self.pipeline.run_module('read_ifs')
+
+        data = self.pipeline.get_data('read_ifs')
+        assert np.allclose(data[0, 5, 5], 0.09790938714631249, rtol=limit, atol=0.)
+        assert np.allclose(np.mean(data), 0.008269661695086998, rtol=limit, atol=0.)
+        assert data.shape == (20, 11, 11)
 
     def test_angle_interpolation(self):
 
@@ -69,53 +72,47 @@ class TestPsfPreparation:
         assert np.allclose(np.mean(data), 10.0, rtol=limit, atol=0.)
         assert data.shape == (40, )
 
-    def test_angle_calculation(self):
+    def test_angle_interpolation_mismatch(self):
 
-        self.pipeline.set_attribute('read', 'LATITUDE', -25.)
-        self.pipeline.set_attribute('read', 'LONGITUDE', -70.)
-        self.pipeline.set_attribute('read', 'DIT', 1.)
+        self.pipeline.set_attribute('read', 'NDIT', [9, 9, 9, 9], static=False)
 
+        module = AngleInterpolationModule(name_in='angle5',
+                                          data_tag='read')
+
+        self.pipeline.add_module(module)
+
+        with pytest.warns(UserWarning) as warning:
+            self.pipeline.run_module('angle5')
+
+        warning_0 = 'There is a mismatch between the NDIT and NFRAMES values. The parallactic ' \
+                    'angles are calculated with a linear interpolation by using NFRAMES steps. ' \
+                    'A frame selection should be applied after the parallactic angles are ' \
+                    'calculated.'
+
+        if len(warning) == 1:
+            assert warning[0].message.args[0] == warning_0
+
+        data = self.pipeline.get_data('header_read/PARANG')
+        assert np.allclose(data[0], 0., rtol=limit, atol=0.)
+        assert np.allclose(data[15], 7.777777777777778, rtol=limit, atol=0.)
+        assert np.allclose(np.mean(data), 10.0, rtol=limit, atol=0.)
+        assert data.shape == (40, )
+
+    def test_angle_naco(self):
+
+        self.pipeline.set_attribute('read', 'LATITUDE', -25., static=True)
+        self.pipeline.set_attribute('read', 'LONGITUDE', -70., static=True)
+        self.pipeline.set_attribute('read', 'DIT', 1., static=True)
+
+        self.pipeline.set_attribute('read', 'NDIT', [10, 10, 10, 10], static=False)
         self.pipeline.set_attribute('read', 'RA', (90., 90., 90., 90.), static=False)
         self.pipeline.set_attribute('read', 'DEC', (-51., -51., -51., -51.), static=False)
         self.pipeline.set_attribute('read', 'PUPIL', (90., 90., 90., 90.), static=False)
 
-        date = ('2012-12-01T07:09:00.0000', '2012-12-01T07:09:01.0000',
-                '2012-12-01T07:09:02.0000', '2012-12-01T07:09:03.0000')
+        date = ['2012-12-01T07:09:00.0000', '2012-12-01T07:09:01.0000',
+                '2012-12-01T07:09:02.0000', '2012-12-01T07:09:03.0000']
 
         self.pipeline.set_attribute('read', 'DATE', date, static=False)
-
-        self.pipeline.set_attribute('read_ifs', 'LATITUDE', -25.)
-        self.pipeline.set_attribute('read_ifs', 'LONGITUDE', -70.)
-        self.pipeline.set_attribute('read_ifs', 'DIT', 1.)
-
-        self.pipeline.set_attribute('read_ifs', 'RA',
-                                    (90., 90., 90., 90.,)*nframes,
-                                    static=False)
-        self.pipeline.set_attribute('read_ifs', 'DEC',
-                                    (-51., -51., -51., -51.,)*nframes,
-                                    static=False)
-        self.pipeline.set_attribute('read_ifs', 'PUPIL',
-                                    (90., 90., 90., 90.,)*nframes,
-                                    static=False)
-
-        self.pipeline.set_attribute('read_ifs', 'LAMBDA0',
-                                    (0.953, 0.953, 0.953, 0.953,)*nframes,
-                                    static=False)
-        self.pipeline.set_attribute('read_ifs', 'LAMBDA0',
-                                    (0.01905, 0.01905, 0.01905, 0.01905,)*nframes,
-                                    static=False)
-        self.pipeline.set_attribute('read_ifs', 'DATCOR',
-                                    tuple(['00000' + s + '.fits' for s in list(map(str, np.arange(nframes)))*4]),
-                                    static=False)
-        self.pipeline.set_attribute('read_ifs', 'EXPTIME',
-                                    (16, 16, 16, 16,)*nframes,
-                                    static=False)
-
-        date_ifs = (('2012-12-01T07:09:00.0000',)*nframes, ('2012-12-01T07:09:01.0000',)*nframes,
-                    ('2012-12-01T07:09:02.0000',)*nframes, ('2012-12-01T07:09:03.0000',)*nframes)
-        date_ifs = [element for tupl in date_ifs for element in tupl]
-
-        self.pipeline.set_attribute('read_ifs', 'DATE', date_ifs, static=False)
 
         module = AngleCalculationModule(instrument='NACO',
                                         name_in='angle2',
@@ -129,10 +126,13 @@ class TestPsfPreparation:
         assert np.allclose(np.mean(data), -54.99858360618869, rtol=limit, atol=0.)
         assert data.shape == (40, )
 
-        self.pipeline.set_attribute('read', 'RA', (60000.0, 60000.0, 60000.0, 60000.0),
-                                    static=False)
-        self.pipeline.set_attribute('read', 'DEC', (-510000., -510000., -510000., -510000.),
-                                    static=False)
+    def test_angle_sphere_irdis(self):
+
+        ra_coord = [60000., 60000., 60000., 60000.]
+        dec_coord = [-510000., -510000., -510000., -510000.]
+
+        self.pipeline.set_attribute('read', 'RA', ra_coord, static=False)
+        self.pipeline.set_attribute('read', 'DEC', dec_coord, static=False)
 
         module = AngleCalculationModule(instrument='SPHERE/IRDIS',
                                         name_in='angle3',
@@ -162,10 +162,30 @@ class TestPsfPreparation:
         assert np.allclose(np.mean(data), 170.46341123194824, rtol=limit, atol=0.)
         assert data.shape == (40, )
 
-        self.pipeline.set_attribute('read_ifs', 'RA', (60000.0, 60000.0, 60000.0, 60000.0),
-                                    static=False)
-        self.pipeline.set_attribute('read_ifs', 'DEC', (-510000., -510000., -510000., -510000.),
-                                    static=False)
+    def test_angle_sphere_ifs(self):
+
+        self.pipeline.set_attribute('read_ifs', 'LATITUDE', -25., static=True)
+        self.pipeline.set_attribute('read_ifs', 'LONGITUDE', -70., static=True)
+        self.pipeline.set_attribute('read_ifs', 'DIT', 1., static=True)
+
+        ra_coord = [60000., 60000., 60000., 60000.]
+        dec_coord = [-510000., -510000., -510000., -510000.]
+
+        self.pipeline.set_attribute('read_ifs', 'RA', ra_coord, static=False)
+        self.pipeline.set_attribute('read_ifs', 'DEC', dec_coord, static=False)
+        self.pipeline.set_attribute('read_ifs', 'PUPIL', [90., 90., 90., 90.], static=False)
+
+        lambda_0 = [0.953, 0.953, 0.953, 0.953]
+        dat_cor = ['000000.fits', '000001.fits', '000000.fits', '000001.fits']
+
+        self.pipeline.set_attribute('read_ifs', 'LAMBDA0', lambda_0, static=False)
+        self.pipeline.set_attribute('read_ifs', 'DATCOR', dat_cor, static=False)
+        self.pipeline.set_attribute('read_ifs', 'EXPTIME', [16., 16., 16., 16.], static=False)
+
+        date_ifs = ['2012-12-01T07:09:00.0000', '2012-12-01T07:09:01.0000',
+                    '2012-12-01T07:09:02.0000', '2012-12-01T07:09:03.0000']
+
+        self.pipeline.set_attribute('read_ifs', 'DATE', date_ifs, static=False)
 
         module = AngleCalculationModule(instrument='SPHERE/IFS',
                                         name_in='angle4',
@@ -190,36 +210,10 @@ class TestPsfPreparation:
             assert warning[0].message.args[0] == warning_0
             assert warning[1].message.args[0] == warning_1
 
-        data = self.pipeline.get_data('header_read/PARANG')
-        assert np.allclose(data[0], 170.39102715170227, rtol=limit, atol=0.)
-        assert np.allclose(np.mean(data), 170.46341123194824, rtol=limit, atol=0.)
-        assert data.shape == (40, )
-
-    def test_angle_interpolation_mismatch(self):
-
-        self.pipeline.set_attribute('read', 'NDIT', [9, 9, 9, 9], static=False)
-
-        module = AngleInterpolationModule(name_in='angle5',
-                                          data_tag='read')
-
-        self.pipeline.add_module(module)
-
-        with pytest.warns(UserWarning) as warning:
-            self.pipeline.run_module('angle5')
-
-        warning_0 = 'There is a mismatch between the NDIT and NFRAMES values. The parallactic ' \
-                    'angles are calculated with a linear interpolation by using NFRAMES steps. ' \
-                    'A frame selection should be applied after the parallactic angles are ' \
-                    'calculated.'
-
-        if len(warning) == 1:
-            assert warning[0].message.args[0] == warning_0
-
-        data = self.pipeline.get_data('header_read/PARANG')
-        assert np.allclose(data[0], 0., rtol=limit, atol=0.)
-        assert np.allclose(data[15], 7.777777777777778, rtol=limit, atol=0.)
-        assert np.allclose(np.mean(data), 10.0, rtol=limit, atol=0.)
-        assert data.shape == (40, )
+        data = self.pipeline.get_data('header_read_ifs/PARANG')
+        assert np.allclose(data[0], 69.91102715170229, rtol=limit, atol=0.)
+        assert np.allclose(np.mean(data), 69.9317696819578, rtol=limit, atol=0.)
+        assert data.shape == (4, )
 
     def test_psf_preparation_norm_mask(self):
 
@@ -229,7 +223,7 @@ class TestPsfPreparation:
                                       mask_out_tag='mask1',
                                       norm=True,
                                       cent_size=0.1,
-                                      edge_size=1.0)
+                                      edge_size=1.)
 
         self.pipeline.add_module(module)
         self.pipeline.run_module('prep1')

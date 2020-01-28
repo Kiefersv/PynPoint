@@ -213,7 +213,7 @@ def create_fake(path: str,
 
     if fwhm is not None or contrast is not None:
         sigma = fwhm / (2.*math.sqrt(2.*math.log(2.)))
-        
+
     if do_ifs:
         new_x0 = []
         new_y0 = []
@@ -284,10 +284,7 @@ def create_star_data(path: str,
                      exp_no: List[int] = [1, 2, 3, 4],
                      ndit: int = 10,
                      nframes: int = 10,
-                     noise: bool = True,
-                     exp_time: float = 16,
-                     do_ifs: bool = False,
-                     ifs_wav: int = 39) -> None:
+                     noise: bool = True) -> None:
     """
     Create data with a stellar PSF and Gaussian noise.
 
@@ -315,10 +312,6 @@ def create_star_data(path: str,
         Number of frames.
     noise : bool
         Adding noise to the images.
-    do_ifs : np.array
-        If True, creates ifs data.
-    ifs_wav : int
-        Number of wavelength channels
 
     Returns
     -------
@@ -330,24 +323,6 @@ def create_star_data(path: str,
 
     if not os.path.exists(path):
         os.makedirs(path)
-
-    if do_ifs:
-        exp_no = exp_no * nframes
-        nframes = ifs_wav
-        new_x0 = []
-        new_y0 = []
-        parang_start_new = []
-        parang_end_new = []
-        for k, _ in enumerate(x0):
-            for l in range(nframes):
-                new_x0.append(x0[k])
-                new_y0.append(y0[k])
-                parang_start_new.append(parang_start[k])
-                parang_end_new.append(parang_end[k])
-        x0 = new_x0
-        y0 = new_y0
-        parang_start = parang_start_new
-        parang_end = parang_end_new
 
     np.random.seed(1)
 
@@ -366,6 +341,7 @@ def create_star_data(path: str,
                 image[i, ] += np.random.normal(loc=0, scale=2e-4, size=(npix_x, npix_x))
 
         hdu = fits.PrimaryHDU()
+
         header = hdu.header
         header['INSTRUME'] = 'IMAGER'
         header['HIERARCH ESO DET EXP NO'] = item
@@ -374,7 +350,88 @@ def create_star_data(path: str,
         header['HIERARCH ESO ADA POSANG END'] = parang_end[j]
         header['HIERARCH ESO SEQ CUMOFFSETX'] = 'None'
         header['HIERARCH ESO SEQ CUMOFFSETY'] = 'None'
-        header['HIERARCH ESO DET SEQ1 DIT'] = exp_time
+
+        hdu.data = image
+        hdu.writeto(os.path.join(path, 'image'+str(j+1).zfill(2)+'.fits'))
+
+
+@typechecked
+def create_ifs_data(path: str) -> None:
+    """
+    Create data with a stellar PSF and Gaussian noise.
+
+    Parameters
+    ----------
+    path : str
+        Working folder.
+    noise : bool
+        Add noise to the images.
+
+    Returns
+    -------
+    NoneType
+        None
+    """
+
+    npix = 11
+    nwavel = 5
+    nexp = 4
+
+    x0 = 5
+    y0 = 5
+
+    fwhm = 3.
+
+    parang_start = [0., 5., 10., 15.]
+    parang_end = [5., 10., 15., 20.]
+    exp_no = [1, 2, 3, 4]
+
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+    # if do_ifs:
+    #     exp_no = exp_no * nframes
+    #     nframes = ifs_wav
+    #     new_x0 = []
+    #     new_y0 = []
+    #     parang_start_new = []
+    #     parang_end_new = []
+    #     for k, _ in enumerate(x0):
+    #         for l in range(nframes):
+    #             new_x0.append(x0[k])
+    #             new_y0.append(y0[k])
+    #             parang_start_new.append(parang_start[k])
+    #             parang_end_new.append(parang_end[k])
+    #     x0 = new_x0
+    #     y0 = new_y0
+    #     parang_start = parang_start_new
+    #     parang_end = parang_end_new
+
+    np.random.seed(1)
+
+    for j, item in enumerate(exp_no):
+        sigma = fwhm / (2. * math.sqrt(2.*math.log(2.)))
+
+        x = y = np.arange(0., npix, 1.)
+        xx, yy = np.meshgrid(x, y)
+
+        image = np.zeros((nwavel, npix, npix))
+
+        for i in range(nwavel):
+            image[i, ] = (1./(2.*np.pi*sigma**2))*np.exp(-((xx-x0)**2+(yy-y0)**2) / (2.*sigma**2))
+            image[i, ] += np.random.normal(loc=0, scale=2e-4, size=(npix, npix))
+
+        hdu = fits.PrimaryHDU()
+
+        header = hdu.header
+        header['INSTRUME'] = 'IMAGER'
+        header['HIERARCH ESO DET EXP NO'] = item
+        header['HIERARCH ESO DET NDIT'] = 1.
+        header['HIERARCH ESO ADA POSANG'] = parang_start[j]
+        header['HIERARCH ESO ADA POSANG END'] = parang_end[j]
+        header['HIERARCH ESO SEQ CUMOFFSETX'] = 'None'
+        header['HIERARCH ESO SEQ CUMOFFSETY'] = 'None'
+        header['HIERARCH ESO DET SEQ1 DIT'] = 16.
 
         hdu.data = image
         hdu.writeto(os.path.join(path, 'image'+str(j+1).zfill(2)+'.fits'))

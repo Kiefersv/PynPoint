@@ -537,11 +537,14 @@ class AngleCalculationModule(ProcessingModule):
 
         # Load Time information
         exp_time = self.m_data_in_port.get_attribute('DIT')
-        if self.m_data_in_port.get_attribute('DATCOR') is not None:
-            cor_pre = self.m_data_in_port.get_attribute('DATCOR')
-            datcor = np.zeros((len(cor_pre)))
-            for i, item in enumerate(cor_pre):
-                datcor[i] = item[-9:-5]
+
+        if 'DATCOR' in self.m_data_in_port.get_all_non_static_attributes():
+            if self.m_data_in_port.get_attribute('DATCOR') is not None:
+                cor_pre = self.m_data_in_port.get_attribute('DATCOR')
+                datcor = np.zeros((len(cor_pre)))
+
+                for i, item in enumerate(cor_pre):
+                    datcor[i] = item[-9:-5]
 
         # Parse to degree depending on instrument
         if 'SPHERE' in self.m_instrument:

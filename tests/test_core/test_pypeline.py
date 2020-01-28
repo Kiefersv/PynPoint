@@ -180,22 +180,25 @@ class TestPypeline:
 
         assert pipeline.add_module(process) is None
 
-        write = FitsWritingModule(name_in='write1', file_name='result.fits', data_tag='im_arr1')
-        assert pipeline.add_module(write) is None
+        module = FitsWritingModule(name_in='write1',
+                                   file_name='result.fits',
+                                   data_tag='im_arr1')
 
-        write = FitsWritingModule(name_in='write2', file_name='result.fits', data_tag='im_arr1',
-                                  output_dir=self.test_dir)
-        assert pipeline.add_module(write) is None
+        assert pipeline.add_module(module) is None
 
-        # TODO uncomment this part
-        # move the set_extra_attr stuff to AngleCalculationModule
+        module = FitsWritingModule(name_in='write2',
+                                   file_name='result.fits',
+                                   data_tag='im_arr1',
+                                   output_dir=self.test_dir)
 
-        # assert pipeline.run() is None
+        assert pipeline.add_module(module) is None
+
+        assert pipeline.run() is None
 
         assert pipeline.get_module_names() == ['read1', 'read2', 'badpixel', 'write1', 'write2']
 
-        # os.remove(self.test_dir+'result.fits')
-        # os.remove(self.test_dir+'PynPoint_database.hdf5')
+        os.remove(self.test_dir+'result.fits')
+        os.remove(self.test_dir+'PynPoint_database.hdf5')
 
     def test_run_module(self):
         pipeline = Pypeline(self.test_dir, self.test_dir, self.test_dir)
