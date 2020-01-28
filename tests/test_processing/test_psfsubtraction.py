@@ -33,6 +33,19 @@ class TestPsfSubtraction:
                     sep=10.,
                     contrast=3e-3)
 
+        create_fake(path=self.test_dir+'science_ifs',
+                    ndit=[20, 20, 20, 20],
+                    nframes=[20, 20, 20, 20],
+                    exp_no=[1, 2, 3, 4],
+                    npix=(30, 30),
+                    fwhm=3.,
+                    x0=[50, 50, 50, 50],
+                    y0=[50, 50, 50, 50],
+                    angles=[[0., 25.], [25., 50.], [50., 75.], [75., 100.]],
+                    sep=10.,
+                    contrast=3e-3,
+                    do_ifs = True)
+
         create_fake(path=self.test_dir+'reference',
                     ndit=[10, 10, 10, 10],
                     nframes=[10, 10, 10, 10],
@@ -51,7 +64,7 @@ class TestPsfSubtraction:
 
     def teardown_class(self):
 
-        remove_test_data(self.test_dir, folders=['science', 'reference'])
+        remove_test_data(self.test_dir, folders=['science', 'science_ifs', 'reference'])
 
     def test_read_data(self):
 
@@ -68,11 +81,23 @@ class TestPsfSubtraction:
         assert data.shape == (80, 100, 100)
 
         read = FitsReadingModule(name_in='read2',
+                                 image_tag='science_ifs',
+                                 input_dir=self.test_dir+'science_ifs')
+
+        self.pipeline.add_module(read)
+        self.pipeline.run_module('read2')
+
+        data = self.pipeline.get_data('science_ifs')
+        assert np.allclose(data[0, 15, 15], -2.1678413434707965e-05, rtol=limit, atol=0.)
+        assert np.allclose(np.mean(data), -1.5171068244419343e-08, rtol=limit, atol=0.)
+        assert data.shape == (3120, 30, 30)
+
+        read = FitsReadingModule(name_in='read3',
                                  image_tag='reference',
                                  input_dir=self.test_dir+'reference')
 
         self.pipeline.add_module(read)
-        self.pipeline.run_module('read2')
+        self.pipeline.run_module('read3')
 
         data = self.pipeline.get_data('reference')
         assert np.allclose(data[0, 50, 50], 0.09798413502193708, rtol=limit, atol=0.)
@@ -92,6 +117,22 @@ class TestPsfSubtraction:
         assert np.allclose(data[15], 19.736842105263158, rtol=limit, atol=0.)
         assert np.allclose(np.mean(data), 50.0, rtol=limit, atol=0.)
         assert data.shape == (80, )
+
+        angle = AngleInterpolationModule(name_in='angle_ifs',
+                                         data_tag='science_ifs')
+
+        self.pipeline.set_attribute('science_ifs', 'LAMBDA',
+                                    tuple([0.953 + i*0.0190526315789474 for i in range(39)])*80,
+                                    static=False)
+        
+        self.pipeline.add_module(angle)
+        self.pipeline.run_module('angle_ifs')
+
+        data = self.pipeline.get_data('header_science_ifs/PARANG')
+        assert np.allclose(data[0], 0., rtol=limit, atol=0.)
+        assert np.allclose(data[585], 19.736842105263158, rtol=limit, atol=0.)
+        assert np.allclose(np.mean(data), 50.0, rtol=limit, atol=0.)
+        assert data.shape == (3120, )
 
     def test_psf_preparation(self):
 
@@ -115,6 +156,25 @@ class TestPsfSubtraction:
         assert data.shape == (80, 100, 100)
 
         prep = PSFpreparationModule(name_in='prep2',
+                                    image_in_tag='science_ifs',
+                                    image_out_tag='science_ifs_prep',
+                                    mask_out_tag=None,
+                                    norm=False,
+                                    resize=None,
+                                    cent_size=0.2,
+                                    edge_size=1.0)
+
+        self.pipeline.add_module(prep)
+        self.pipeline.run_module('prep2')
+
+        data = self.pipeline.get_data('science_ifs_prep')
+        assert np.allclose(data[0, 0, 0], 0.0, rtol=limit, atol=0.)
+        assert np.allclose(data[0, 8, 8], 0.0003621069828250913, rtol=limit, atol=0.)
+        assert np.allclose(data[0, 29, 29], 0.0, rtol=limit, atol=0.)
+        assert np.allclose(np.mean(data), 1.0382225369833116e-08, rtol=limit, atol=0.)
+        assert data.shape == (3120, 30, 30)
+
+        prep = PSFpreparationModule(name_in='prep3',
                                     image_in_tag='reference',
                                     image_out_tag='reference_prep',
                                     mask_out_tag=None,
@@ -124,7 +184,7 @@ class TestPsfSubtraction:
                                     edge_size=1.0)
 
         self.pipeline.add_module(prep)
-        self.pipeline.run_module('prep2')
+        self.pipeline.run_module('prep3')
 
         data = self.pipeline.get_data('reference_prep')
         assert np.allclose(data[0, 0, 0], 0.0, rtol=limit, atol=0.)
@@ -338,6 +398,69 @@ class TestPsfSubtraction:
         data = self.pipeline.get_data('basis_single_mask')
         assert np.allclose(np.mean(data), 5.584100479595007e-06, rtol=limit, atol=0.)
         assert data.shape == (20, 100, 100)
+
+    def test_psf_subtraction_pca_sdi(self):
+        
+        processing_types = ['Tnan', 'Wnan', 'Tadi', 'Wadi', 'Tsdi', 'Wsdi',
+                            'Tsaa', 'Wsaa', 'Tsap', 'Wsap', 'Tasp', 'Wasp']
+        output = [20, 780, 20, 780, 20, 780,
+                  20, 780, 20, 780, 20, 780]
+        
+        expected = [[-5.864061414049836e-09, -5.159833573605877e-08, -6.830990912742111e-09, 4.260625664175148e-09, -5.864061414049984e-09, -5.5070629380590396e-05],
+                    [-5.86406141404998e-09, -4.894869841962114e-08, -4.0326783127072524e-09, -5.979717316117753e-09, -5.864061414049984e-09, -5.5070629380574655e-05],
+                    [-3.900238363867993e-09, -3.4753652787711324e-09, -9.56926198985347e-09, -4.8937783975924e-09, -5.97511980961984e-09, -5.507062938051492e-05],
+                    [-3.9002383638681686e-09, -2.672570280874489e-08, -5.0423875578771894e-08, -4.027640690462612e-09, -5.97511980961984e-09, -5.507062938057946e-05],
+                    [2.8299926897439972e-08, -7.03386498581676e-09, 0.0002668622569034523, -4.074013794145201e-09, -3.51961148892742e-09, -5.507062938047612e-05],
+                    [2.8299926794883926e-08, -5.0714102731405675e-09, -5.3642917099784826e-05, -2.505850519758927e-09, -3.51961148892742e-09, -5.5070629380505184e-05],
+                    [-1.395608885368232e-09, 1.2695028342511763e-08, 3.8540800436855866e-06, 6.838207693112924e-10, -1.448802413722696e-09, -5.5070629380618206e-05],
+                    [-1.3956088855129035e-09, -7.115472685716207e-09, -1.7586915448204037e-06, 3.0517553206663122e-09, -1.448802413722696e-09, -5.5070629380463585e-05],
+                    [1.3347950606643146e-09, 1.023772960115013e-09, -1.3891415014392568e-07, 7.580576867695924e-10, 1.1428852391379652e-09, -5.507062938056532e-05],
+                    [1.3347950605923431e-09, -1.899560222546051e-08, -8.680389557253586e-08, -5.987154879720421e-09, 1.1428852391379652e-09, -5.507062938051501e-05],
+                    [1.1950520114280692e-08, -8.683629989869749e-09, 0.00011879068826542014, -5.680102544248163e-09, 2.2917631529952582e-10, -5.507062938047986e-05],
+                    [1.195051960733747e-08, -1.668604141296394e-08, -3.0944830465793196e-06, -8.823234207765486e-09, 2.2917631537833233e-10, -5.507062938063533e-05]]
+        
+        for i, p_type in enumerate(processing_types): 
+            pca = PcaPsfSubtractionModule(pca_numbers=range(1, 21),
+                                          name_in='pca_single_sdi_' + p_type,
+                                          images_in_tag='science_ifs_prep',
+                                          reference_in_tag='science_ifs_prep',
+                                          res_mean_tag='res_mean_single_sdi_' + p_type,
+                                          res_median_tag='res_median_single_sdi_' + p_type,
+                                          res_weighted_tag='res_weighted_single_sdi_' + p_type,
+                                          res_rot_mean_clip_tag='res_clip_single_sdi_' + p_type,
+                                          res_arr_out_tag='res_arr_single_sdi_' + p_type,
+                                          basis_out_tag='basis_single_sdi_' + p_type,
+                                          extra_rot=-15.,
+                                          subtract_mean=True,
+                                          processing_type = p_type)
+    
+            self.pipeline.add_module(pca)
+            self.pipeline.run_module('pca_single_sdi_' + p_type)
+    
+            data = self.pipeline.get_data('res_mean_single_sdi_' + p_type)
+            assert np.allclose(np.mean(data), expected[i][0], rtol=limit, atol=0.)
+            assert data.shape == (output[i], 30, 30)
+    
+            data = self.pipeline.get_data('res_median_single_sdi_' + p_type)
+            assert np.allclose(np.mean(data), expected[i][1], rtol=limit, atol=0.)
+            assert data.shape == (output[i], 30, 30)
+    
+            data = self.pipeline.get_data('res_weighted_single_sdi_' + p_type)
+            assert np.allclose(np.mean(data), expected[i][2], rtol=limit, atol=0.)
+            assert data.shape == (output[i], 30, 30)
+    
+            data = self.pipeline.get_data('res_clip_single_sdi_' + p_type)
+            assert np.allclose(np.mean(data), expected[i][3], rtol=limit, atol=0.)
+            assert data.shape == (output[i], 30, 30)
+    
+            data = self.pipeline.get_data('res_arr_single_sdi_' + p_type + '5')
+            assert np.allclose(np.mean(data), expected[i][4], rtol=limit, atol=0.)
+            assert data.shape == (3120, 30, 30)
+    
+            data = self.pipeline.get_data('basis_single_sdi_' + p_type)
+            assert np.allclose(np.mean(data), expected[i][5], rtol=limit, atol=0.)
+            assert data.shape == (20, 30, 30)
+            
 
     def test_psf_subtraction_no_mean_mask(self):
 

@@ -74,7 +74,7 @@ def combine_residuals(method: str,
         if method == 'stim':
             output = _residuals(method='median', res_rot=np.asarray(output), residuals=residuals, angles=angles)
         else:
-            output = _residuals(method=method, res_rot=np.asarray(output), residuals=residuals, angles=angles)
+            output = _residuals(method=method, res_rot=res_rot, residuals=residuals, angles=angles)
 
     return output
 

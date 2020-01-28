@@ -162,9 +162,11 @@ def create_fake(path: str,
                 y0: List[float],
                 angles: List[List[float]],
                 sep: Union[float, None],
-                contrast: Union[float, None]) -> None:
+                contrast: Union[float, None],
+                do_ifs: bool = False,
+                ifs_wav: List[float] = [39, 0.953, 0.0190526315789474]) -> None:
     """
-    Create ADI test data with a fake planet.
+    Create ADI or IFS test data with a fake planet.
 
     Parameters
     ----------
@@ -190,6 +192,10 @@ def create_fake(path: str,
         Separation of the planet.
     contrast : float, None
         Brightness contrast of the planet.
+    do_ifs : bool
+        If True, creates ifs data.
+    ifs_wav : int
+        Number of wavelength channels
 
     Returns
     -------
@@ -207,6 +213,25 @@ def create_fake(path: str,
 
     if fwhm is not None or contrast is not None:
         sigma = fwhm / (2.*math.sqrt(2.*math.log(2.)))
+        
+    if do_ifs:
+        new_x0 = []
+        new_y0 = []
+        new_exp_no = []
+        new_angles = []
+        for k, _ in enumerate(x0):
+            for l, angs in enumerate(np.linspace(angles[k][0], angles[k][1], num=ndit[k])):
+                new_x0.append(x0[k])
+                new_y0.append(y0[k])
+                new_exp_no.append(exp_no[k])
+                new_angles.append([angs,angs])
+        x0 = new_x0
+        y0 = new_y0
+        exp_no = new_exp_no
+        angles = new_angles
+        nframes = np.ones((np.sum(nframes)),dtype=int)*int(ifs_wav[0])
+        ndit = np.ones((len(nframes)),dtype=int)*int(ifs_wav[0])
+
 
     x = np.arange(0., npix[0], 1.)
     y = np.arange(0., npix[1], 1.)
@@ -221,22 +246,30 @@ def create_fake(path: str,
         for i in range(ndit[j]):
             noise = np.random.normal(loc=0, scale=2e-4, size=(npix[1], npix[0]))
             image[i, 0:npix[1], 0:npix[0]] = noise
+            
+            if do_ifs:
+                sigma_c = sigma *(ifs_wav[1] + i*ifs_wav[2])/ifs_wav[1]
+            else:
+                sigma_c = sigma
 
             if fwhm is not None:
-                star = (1./(2.*np.pi*sigma**2))*np.exp(-((xx-x0[j])**2+(yy-y0[j])**2)/(2.*sigma**2))
+                star = (1./(2.*np.pi*sigma_c**2))*np.exp(-((xx-x0[j])**2+(yy-y0[j])**2)/(2.*sigma_c**2))
                 image[i, 0:npix[1], 0:npix[0]] += star
 
             if contrast is not None and sep is not None:
-                planet = contrast*(1./(2.*np.pi*sigma**2))*np.exp(-((xx-x0[j])**2+(yy-y0[j])**2) /
-                                                                  (2.*sigma**2))
+                planet = contrast*(1./(2.*np.pi*sigma_c**2))*np.exp(-((xx-x0[j])**2+(yy-y0[j])**2) /
+                                                                  (2.*sigma_c**2))
                 x_shift = sep*math.cos(parang[count]*math.pi/180.)
                 y_shift = sep*math.sin(parang[count]*math.pi/180.)
                 planet = shift(planet, (x_shift, y_shift), order=5)
                 image[i, 0:npix[1], 0:npix[0]] += planet
 
+            if not do_ifs:
+                count += 1
+        if do_ifs:
             count += 1
 
-        create_fits(path, 'image'+str(j+1).zfill(2)+'.fits', image, ndit[j], exp_no[j],
+        create_fits(path, 'image'+str(j+1).zfill(2)+'.fits', image, int(ndit[j]), exp_no[j],
                     angles[j], x0[j]-npix[0]/2., y0[j]-npix[1]/2.)
 
 
@@ -254,7 +287,7 @@ def create_star_data(path: str,
                      noise: bool = True,
                      exp_time: float = 16,
                      do_ifs: bool = False,
-                     ifs_wav: float = 39) -> None:
+                     ifs_wav: int = 39) -> None:
     """
     Create data with a stellar PSF and Gaussian noise.
 
@@ -282,9 +315,10 @@ def create_star_data(path: str,
         Number of frames.
     noise : bool
         Adding noise to the images.
-    ifs : np.array
-        Creating IFS data with given wavelenghts. List contains:
-        [First Wavelength, Delta Wavelength, Number of Wavelengths, File Nr]
+    do_ifs : np.array
+        If True, creates ifs data.
+    ifs_wav : int
+        Number of wavelength channels
 
     Returns
     -------
@@ -297,7 +331,7 @@ def create_star_data(path: str,
     if not os.path.exists(path):
         os.makedirs(path)
 
-    if do_ifs is True:
+    if do_ifs:
         exp_no = exp_no * nframes
         nframes = ifs_wav
         new_x0 = []

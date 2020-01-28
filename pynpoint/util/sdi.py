@@ -304,7 +304,7 @@ def postprocessor(images: np.ndarray,
                   im_shape: Tuple[int, int, int] = None,
                   indices: np.ndarray = None,
                   mask: np.ndarray = None,
-                  processing_type: str = 'Tadi'):
+                  processing_type: str = 'Oadi'):
 
     """
     Function to apply different kind of post processings. If processing_type = \'Cadi\'
@@ -331,6 +331,7 @@ def postprocessor(images: np.ndarray,
         Mask (2D).
     processing_type : str
         Type of post processing. Currently supported:
+            Oadi: Applaying ADI and creturning one wavelength avaraged image (Equivalent to IRDIS SDI if all wavelengths are the same)
             Tnan: Applaying no PCA reduction and returning one wavelength avaraged image (Equivalent to Classical ADI)
             Wnan: Applaying no PCA reduction and returing one image per Wavelengths
             Tadi: Applaying ADI and creturning one wavelength avaraged image (Equivalent to IRDIS SDI if all wavelengths are the same)
@@ -359,7 +360,7 @@ def postprocessor(images: np.ndarray,
     lam_splits = np.sort(list(set(scales)))
     tim_splits = np.sort(list(set(parang)))
 
-    if processing_type not in ['Wnan', 'Tnan', 'Wadi', 'Tadi']:
+    if processing_type not in ['Oadi']:
         if im_shape is not None:
             swup = np.zeros((im_shape[0], im_shape[1]*im_shape[2]))
             if indices is not None:
@@ -397,13 +398,13 @@ def postprocessor(images: np.ndarray,
     # ----------------------------------------- List of different processing
     # No reduction
     if processing_type in ['Wnan', 'Tnan']:
-
+        
         res_raw = ims
         for j, item in enumerate(parang):
             res_rot[j, ] = rotate(ims[j, ], item, reshape=False)
 
     # Wavelength specific adi
-    elif processing_type in ['Wadi', 'Tadi']:
+    elif processing_type in ['Wadi', 'Tadi', 'Oadi']:
 
         for _, lam_i in enumerate(lam_splits):
             mask_i = (scales == lam_i)
@@ -436,7 +437,7 @@ def postprocessor(images: np.ndarray,
             res_rot[mask_i] = res_rot_i
 
     # SDI and ADI simultaniously
-    elif processing_type in ['Wsaap', 'Tsaa']:
+    elif processing_type in ['Wsaa', 'Tsaa']:
         im_scaled, _, _ = sdi_scaling(ims, scales)
 
         res_raw, res_rot = pca_psf_subtraction(images=im_scaled*mask,

@@ -105,7 +105,7 @@ class TestPsfPreparation:
                                     (0.01905, 0.01905, 0.01905, 0.01905,)*nframes,
                                     static=False)
         self.pipeline.set_attribute('read_ifs', 'DATCOR',
-                                    tuple(['00000' + s + '.fits' for s in list(map(str, np.arange(10)))*4]),
+                                    tuple(['00000' + s + '.fits' for s in list(map(str, np.arange(nframes)))*4]),
                                     static=False)
         self.pipeline.set_attribute('read_ifs', 'EXPTIME',
                                     (16, 16, 16, 16,)*nframes,

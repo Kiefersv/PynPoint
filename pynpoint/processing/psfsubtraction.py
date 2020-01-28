@@ -51,7 +51,7 @@ class PcaPsfSubtractionModule(ProcessingModule):
                  pca_numbers: Union[range, List[int], np.ndarray] = range(1, 21),
                  extra_rot: float = 0.,
                  subtract_mean: bool = True,
-                 processing_type: str = 'Tadi') -> None:
+                 processing_type: str = 'Oadi') -> None:
         """
         Parameters
         ----------
@@ -92,6 +92,7 @@ class PcaPsfSubtractionModule(ProcessingModule):
             stack, before the PCA basis is constructed and fitted.
         processing_type : str
             Type of post processing. Currently supported:
+                Oadi: Applaying ADI and creturning one wavelength avaraged image (Equivalent to IRDIS SDI if all wavelengths are the same)
                 Tnan: Applaying no PCA reduction and returning one wavelength avaraged image (Equivalent to Classical ADI)
                 Wnan: Applaying no PCA reduction and returing one image per Wavelengths
                 Tadi: Applaying ADI and creturning one wavelength avaraged image (Equivalent to IRDIS SDI if all wavelengths are the same)
