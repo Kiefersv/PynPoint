@@ -168,8 +168,8 @@ class TestPsfPreparation:
         self.pipeline.set_attribute('read_ifs', 'LONGITUDE', -70., static=True)
         self.pipeline.set_attribute('read_ifs', 'DIT', 1., static=True)
 
-        ra_coord = [60000., 60000., 60000., 60000.]
-        dec_coord = [-510000., -510000., -510000., -510000.]
+        ra_coord = [60.000, 60.000, 60.000, 60.000]
+        dec_coord = [-51.0000, -51.0000, -51.0000, -51.0000]
 
         self.pipeline.set_attribute('read_ifs', 'RA', ra_coord, static=False)
         self.pipeline.set_attribute('read_ifs', 'DEC', dec_coord, static=False)
@@ -211,8 +211,8 @@ class TestPsfPreparation:
             assert warning[1].message.args[0] == warning_1
 
         data = self.pipeline.get_data('header_read_ifs/PARANG')
-        assert np.allclose(data[0], 69.91102715170229, rtol=limit, atol=0.)
-        assert np.allclose(np.mean(data), 69.9317696819578, rtol=limit, atol=0.)
+        assert np.allclose(data[0], 151.57578008016634, rtol=limit, atol=0.)
+        assert np.allclose(np.mean(data), 151.57730710280504, rtol=limit, atol=0.)
         assert data.shape == (4, )
 
     def test_psf_preparation_norm_mask(self):

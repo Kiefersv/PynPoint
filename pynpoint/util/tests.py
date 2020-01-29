@@ -164,7 +164,7 @@ def create_fake(path: str,
                 sep: Union[float, None],
                 contrast: Union[float, None],
                 do_ifs: bool = False,
-                ifs_wav: List[float] = [39, 0.953, 0.0190526315789474]) -> None:
+                ifs_wav: List[float] = [21, 0.953, 0.0190526315789474]) -> None:
     """
     Create ADI or IFS test data with a fake planet.
 
@@ -215,22 +215,8 @@ def create_fake(path: str,
         sigma = fwhm / (2.*math.sqrt(2.*math.log(2.)))
 
     if do_ifs:
-        new_x0 = []
-        new_y0 = []
-        new_exp_no = []
-        new_angles = []
-        for k, _ in enumerate(x0):
-            for l, angs in enumerate(np.linspace(angles[k][0], angles[k][1], num=ndit[k])):
-                new_x0.append(x0[k])
-                new_y0.append(y0[k])
-                new_exp_no.append(exp_no[k])
-                new_angles.append([angs,angs])
-        x0 = new_x0
-        y0 = new_y0
-        exp_no = new_exp_no
-        angles = new_angles
         nframes = np.ones((np.sum(nframes)),dtype=int)*int(ifs_wav[0])
-        ndit = np.ones((len(nframes)),dtype=int)*int(ifs_wav[0])
+        ndit = np.ones_like(ndit,dtype=int)*int(ifs_wav[0])
 
 
     x = np.arange(0., npix[0], 1.)
