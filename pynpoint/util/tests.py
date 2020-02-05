@@ -344,14 +344,12 @@ def create_star_data(path: str,
 @typechecked
 def create_ifs_data(path: str) -> None:
     """
-    Create data with a stellar PSF and Gaussian noise.
+    Create IFS data with a stellar PSF and Gaussian noise.
 
     Parameters
     ----------
     path : str
         Working folder.
-    noise : bool
-        Add noise to the images.
 
     Returns
     -------
@@ -361,7 +359,6 @@ def create_ifs_data(path: str) -> None:
 
     npix = 11
     nwavel = 5
-    nexp = 4
 
     x0 = 5
     y0 = 5
@@ -374,24 +371,6 @@ def create_ifs_data(path: str) -> None:
 
     if not os.path.exists(path):
         os.makedirs(path)
-
-    # if do_ifs:
-    #     exp_no = exp_no * nframes
-    #     nframes = ifs_wav
-    #     new_x0 = []
-    #     new_y0 = []
-    #     parang_start_new = []
-    #     parang_end_new = []
-    #     for k, _ in enumerate(x0):
-    #         for l in range(nframes):
-    #             new_x0.append(x0[k])
-    #             new_y0.append(y0[k])
-    #             parang_start_new.append(parang_start[k])
-    #             parang_end_new.append(parang_end[k])
-    #     x0 = new_x0
-    #     y0 = new_y0
-    #     parang_start = parang_start_new
-    #     parang_end = parang_end_new
 
     np.random.seed(1)
 
