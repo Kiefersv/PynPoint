@@ -44,7 +44,7 @@ class PcaPsfSubtractionModule(ProcessingModule):
                  res_mean_tag: str = None,
                  res_median_tag: str = None,
                  res_weighted_tag: str = None,
-                 res_stim_tag: str = None,
+                 dmp_stim_tag: str = None,
                  res_rot_mean_clip_tag: str = None,
                  res_arr_out_tag: str = None,
                  basis_out_tag: str = None,
@@ -70,8 +70,8 @@ class PcaPsfSubtractionModule(ProcessingModule):
         res_weighted_tag : str, None
             Tag of the database entry with the noise-weighted residuals (see Bottom et al. 2017).
             Not calculated if set to None.
-        res_stim_tag : str, None
-            Tag of the database entry with the stim residuals (see Pairet et al. 2010).
+        dec_stim_tag : str, None
+            Tag of the database entry with the STIM detection map (see Pairet et al. 2010).
             Not calculated if set to None. This is a detection map and not residuals
         res_rot_mean_clip_tag : str, None
             Tag of the database entry of the clipped mean residuals. Not calculated if set to
@@ -92,16 +92,16 @@ class PcaPsfSubtractionModule(ProcessingModule):
             stack, before the PCA basis is constructed and fitted.
         processing_type : str
             Type of post processing:
-                ADI: Applaying ADI with a PCA reduction using pca_number of prinzipal 
-                     components. Creats one final image.
-                SDI: Applaying SDI with a PCA reduction using pca_number of prinzipal 
-                     components. Creats one image per wavelength.
-                ADI+SDI: First applies ADI with a PCA reduction using pca_number of prinzipal 
-                     components, then applies SDI with a PCA reduction using pca_number of 
-                     prinzipal components. Creats one image per wavelength.
-                SDI+ADI: First applies SDI with a PCA reduction using pca_number of prinzipal 
-                     components, then applies ADI with a PCA reduction using pca_number of 
-                     prinzipal components. Creats one image per wavelength.
+                ADI: Applying ADI with a PCA reduction using pca_number of principal
+                     components. Creates one final image.
+                SDI: Applying SDI with a PCA reduction using pca_number of principal
+                     components. Creates one image per wavelength.
+                ADI+SDI: First applies ADI with a PCA reduction using pca_number of principal
+                     components, then applies SDI with a PCA reduction using pca_number of
+                     prinzipal components. Creates one image per wavelength.
+                SDI+ADI: First applies SDI with a PCA reduction using pca_number of prinzipal
+                     components, then applies ADI with a PCA reduction using pca_number of
+                     prinzipal components. Creates one image per wavelength.
 
         Returns
         -------
@@ -136,10 +136,10 @@ class PcaPsfSubtractionModule(ProcessingModule):
         else:
             self.m_res_weighted_out_port = self.add_output_port(res_weighted_tag)
 
-        if res_stim_tag is None:
+        if dmp_stim_tag is None:
             self.m_res_stim_out_port = None
         else:
-            self.m_res_stim_out_port = self.add_output_port(res_stim_tag)
+            self.m_res_stim_out_port = self.add_output_port(dmp_stim_tag)
 
         if res_rot_mean_clip_tag is None:
             self.m_res_rot_mean_clip_out_port = None
@@ -375,7 +375,7 @@ class PcaPsfSubtractionModule(ProcessingModule):
                           f'to None.')
 
         self._clear_output_ports()
-        
+
         # Parse processing_type input to postporcesser support
         if self.m_processing_type == 'ADI':
             self.m_processing_type = 'Oadi'

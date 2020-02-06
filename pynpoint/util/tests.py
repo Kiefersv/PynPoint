@@ -162,9 +162,7 @@ def create_fake(path: str,
                 y0: List[float],
                 angles: List[List[float]],
                 sep: Union[float, None],
-                contrast: Union[float, None],
-                do_ifs: bool = False,
-                ifs_wav: List[float] = [6, 0.953, 0.0190526315789474]) -> None:
+                contrast: Union[float, None]) -> None:
     """
     Create ADI or IFS test data with a fake planet.
 
@@ -214,11 +212,6 @@ def create_fake(path: str,
     if fwhm is not None or contrast is not None:
         sigma = fwhm / (2.*math.sqrt(2.*math.log(2.)))
 
-    if do_ifs:
-        nframes = np.ones((np.sum(nframes)),dtype=int)*int(ifs_wav[0])
-        ndit = np.ones_like(ndit,dtype=int)*int(ifs_wav[0])
-
-
     x = np.arange(0., npix[0], 1.)
     y = np.arange(0., npix[1], 1.)
     xx, yy = np.meshgrid(x, y)
@@ -232,11 +225,8 @@ def create_fake(path: str,
         for i in range(ndit[j]):
             noise = np.random.normal(loc=0, scale=2e-4, size=(npix[1], npix[0]))
             image[i, 0:npix[1], 0:npix[0]] = noise
-            
-            if do_ifs:
-                sigma_c = sigma *(ifs_wav[1] + i*ifs_wav[2])/ifs_wav[1]
-            else:
-                sigma_c = sigma
+
+            sigma_c = sigma
 
             if fwhm is not None:
                 star = (1./(2.*np.pi*sigma_c**2))*np.exp(-((xx-x0[j])**2+(yy-y0[j])**2)/(2.*sigma_c**2))
@@ -244,15 +234,12 @@ def create_fake(path: str,
 
             if contrast is not None and sep is not None:
                 planet = contrast*(1./(2.*np.pi*sigma_c**2))*np.exp(-((xx-x0[j])**2+(yy-y0[j])**2) /
-                                                                  (2.*sigma_c**2))
+                                                                    (2.*sigma_c**2))
                 x_shift = sep*math.cos(parang[count]*math.pi/180.)
                 y_shift = sep*math.sin(parang[count]*math.pi/180.)
                 planet = shift(planet, (x_shift, y_shift), order=5)
                 image[i, 0:npix[1], 0:npix[0]] += planet
 
-            if not do_ifs:
-                count += 1
-        if do_ifs:
             count += 1
 
         create_fits(path, 'image'+str(j+1).zfill(2)+'.fits', image, int(ndit[j]), exp_no[j],
@@ -274,7 +261,7 @@ def create_ifs_fake(path: str) -> None:
     NoneType
         None
     """
-    
+
     ndit = [int(i) for i in np.ones((4*5))]
     exp_no = [i % 5 for i in range(4*5)]
     npix = (30, 30)
@@ -293,8 +280,8 @@ def create_ifs_fake(path: str) -> None:
             parang.append(item[0]+float(j)*(item[1]-item[0])/float(ndit[i]))
 
     sigma = fwhm / (2.*math.sqrt(2.*math.log(2.)))
-    ndit = np.ones_like(ndit,dtype=int)*int(ifs_wav[0])
-    nframes = np.ones((np.sum([5, 5, 5, 5])),dtype=int)*int(ifs_wav[0])
+    ndit = np.ones_like(ndit, dtype=int)*int(ifs_wav[0])
+    nframes = np.ones((np.sum([5, 5, 5, 5])), dtype=int)*int(ifs_wav[0])
 
     x = np.arange(0., npix[0], 1.)
     y = np.arange(0., npix[1], 1.)
@@ -309,14 +296,14 @@ def create_ifs_fake(path: str) -> None:
         for i in range(ndit[j]):
             noise = np.random.normal(loc=0, scale=2e-4, size=(npix[1], npix[0]))
             image[i, 0:npix[1], 0:npix[0]] = noise
-            
-            sigma_c = sigma *(ifs_wav[1] + i*ifs_wav[2])/ifs_wav[1]
+
+            sigma_c = sigma * (ifs_wav[1] + i * ifs_wav[2]) / ifs_wav[1]
 
             star = (1./(2.*np.pi*sigma_c**2))*np.exp(-((xx-x0[j])**2+(yy-y0[j])**2)/(2.*sigma_c**2))
             image[i, 0:npix[1], 0:npix[0]] += star
 
-            planet = 3e-3*(1./(2.*np.pi*sigma_c**2))*np.exp(-((xx-x0[j])**2+(yy-y0[j])**2) /
-                                                              (2.*sigma_c**2))
+            planet = 3e-3*(1./(2.*np.pi*sigma_c**2))*np.exp(-((xx-x0[j])**2+(yy-y0[j])**2) / (2.*sigma_c**2))
+
             x_shift = 10*math.cos(parang[count]*math.pi/180.)
             y_shift = 10*math.sin(parang[count]*math.pi/180.)
             planet = shift(planet, (x_shift, y_shift), order=5)
