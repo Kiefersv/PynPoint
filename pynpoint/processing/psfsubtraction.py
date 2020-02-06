@@ -51,7 +51,7 @@ class PcaPsfSubtractionModule(ProcessingModule):
                  pca_numbers: Union[range, List[int], np.ndarray] = range(1, 21),
                  extra_rot: float = 0.,
                  subtract_mean: bool = True,
-                 processing_type: str = 'Oadi') -> None:
+                 processing_type: str = 'ADI') -> None:
         """
         Parameters
         ----------
@@ -91,21 +91,17 @@ class PcaPsfSubtractionModule(ProcessingModule):
             The mean of the science and reference images is subtracted from the corresponding
             stack, before the PCA basis is constructed and fitted.
         processing_type : str
-            Type of post processing. Currently supported:
-                Oadi: Applaying ADI and creturning one wavelength avaraged image (Equivalent to IRDIS SDI if all wavelengths are the same)
-                Tnan: Applaying no PCA reduction and returning one wavelength avaraged image (Equivalent to Classical ADI)
-                Wnan: Applaying no PCA reduction and returing one image per Wavelengths
-                Tadi: Applaying ADI and creturning one wavelength avaraged image (Equivalent to IRDIS SDI if all wavelengths are the same)
-                Wadi: Applaying ADI and returing one image per Wavelengths
-                Tsdi: Applaying SDI and returning one wavelength avaraged image
-                Wsdi: Applaying SDI and returing one image per Wavelengths
-                Tsaa: Applaying SDI and ADI simultaniously and returning one wavelength avaraged image
-                Wsaa: Applaying SDI and ADI simultaniously and returing one image per Wavelengths
-                Tsap: Applaying SDI then ADI and returning one wavelength avaraged image
-                Wsap: Applaying SDI then ADI and returing one image per Wavelengths
-                Tasp: Applaying ADI then SDI and returning one wavelength avaraged image
-                Wasp: Applaying ADI then SDI and returing one image per Wavelengths
-            Each reduction step uses pca_number PCA components to reduce the images.
+            Type of post processing:
+                ADI: Applaying ADI with a PCA reduction using pca_number of prinzipal 
+                     components. Creats one final image.
+                SDI: Applaying SDI with a PCA reduction using pca_number of prinzipal 
+                     components. Creats one image per wavelength.
+                ADI+SDI: First applies ADI with a PCA reduction using pca_number of prinzipal 
+                     components, then applies SDI with a PCA reduction using pca_number of 
+                     prinzipal components. Creats one image per wavelength.
+                SDI+ADI: First applies SDI with a PCA reduction using pca_number of prinzipal 
+                     components, then applies ADI with a PCA reduction using pca_number of 
+                     prinzipal components. Creats one image per wavelength.
 
         Returns
         -------
@@ -379,6 +375,16 @@ class PcaPsfSubtractionModule(ProcessingModule):
                           f'to None.')
 
         self._clear_output_ports()
+        
+        # Parse processing_type input to postporcesser support
+        if self.m_processing_type == 'ADI':
+            self.m_processing_type = 'Oadi'
+        if self.m_processing_type == 'SDI':
+            self.m_processing_type = 'Wsdi'
+        if self.m_processing_type == 'ADI+SDI':
+            self.m_processing_type = 'Wasp'
+        if self.m_processing_type == 'SDI+ADI':
+            self.m_processing_type = 'Wsap'
 
         # get all data
         star_data = self.m_star_in_port.get_all()

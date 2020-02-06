@@ -164,7 +164,7 @@ def create_fake(path: str,
                 sep: Union[float, None],
                 contrast: Union[float, None],
                 do_ifs: bool = False,
-                ifs_wav: List[float] = [21, 0.953, 0.0190526315789474]) -> None:
+                ifs_wav: List[float] = [6, 0.953, 0.0190526315789474]) -> None:
     """
     Create ADI or IFS test data with a fake planet.
 
@@ -254,6 +254,75 @@ def create_fake(path: str,
                 count += 1
         if do_ifs:
             count += 1
+
+        create_fits(path, 'image'+str(j+1).zfill(2)+'.fits', image, int(ndit[j]), exp_no[j],
+                    angles[j], x0[j]-npix[0]/2., y0[j]-npix[1]/2.)
+
+
+@typechecked
+def create_ifs_fake(path: str) -> None:
+    """
+    Create ADI or IFS test data with a fake planet.
+
+    Parameters
+    ----------
+    path : str
+        Working folder.
+
+    Returns
+    -------
+    NoneType
+        None
+    """
+    
+    ndit = [int(i) for i in np.ones((4*5))]
+    exp_no = [i % 5 for i in range(4*5)]
+    npix = (30, 30)
+    fwhm = 3.
+    x0 = [i*15 for i in np.ones((4*5))]
+    y0 = [i*15 for i in np.ones((4*5))]
+    angles = [[i, i] for i in np.linspace(0., 100., 20)]
+    ifs_wav = [6, 0.953, 0.0190526315789474]
+
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+    parang = []
+    for i, item in enumerate(angles):
+        for j in range(ndit[i]):
+            parang.append(item[0]+float(j)*(item[1]-item[0])/float(ndit[i]))
+
+    sigma = fwhm / (2.*math.sqrt(2.*math.log(2.)))
+    ndit = np.ones_like(ndit,dtype=int)*int(ifs_wav[0])
+    nframes = np.ones((np.sum([5, 5, 5, 5])),dtype=int)*int(ifs_wav[0])
+
+    x = np.arange(0., npix[0], 1.)
+    y = np.arange(0., npix[1], 1.)
+    xx, yy = np.meshgrid(x, y)
+
+    np.random.seed(1)
+
+    count = 0
+    for j, item in enumerate(nframes):
+        image = np.zeros((item, npix[1], npix[0]))
+
+        for i in range(ndit[j]):
+            noise = np.random.normal(loc=0, scale=2e-4, size=(npix[1], npix[0]))
+            image[i, 0:npix[1], 0:npix[0]] = noise
+            
+            sigma_c = sigma *(ifs_wav[1] + i*ifs_wav[2])/ifs_wav[1]
+
+            star = (1./(2.*np.pi*sigma_c**2))*np.exp(-((xx-x0[j])**2+(yy-y0[j])**2)/(2.*sigma_c**2))
+            image[i, 0:npix[1], 0:npix[0]] += star
+
+            planet = 3e-3*(1./(2.*np.pi*sigma_c**2))*np.exp(-((xx-x0[j])**2+(yy-y0[j])**2) /
+                                                              (2.*sigma_c**2))
+            x_shift = 10*math.cos(parang[count]*math.pi/180.)
+            y_shift = 10*math.sin(parang[count]*math.pi/180.)
+            planet = shift(planet, (x_shift, y_shift), order=5)
+            image[i, 0:npix[1], 0:npix[0]] += planet
+
+        count += 1
 
         create_fits(path, 'image'+str(j+1).zfill(2)+'.fits', image, int(ndit[j]), exp_no[j],
                     angles[j], x0[j]-npix[0]/2., y0[j]-npix[1]/2.)
@@ -361,7 +430,6 @@ def create_ifs_data(path: str) -> None:
 
     npix = 11
     nwavel = 5
-    nexp = 4
 
     x0 = 5
     y0 = 5
@@ -374,24 +442,6 @@ def create_ifs_data(path: str) -> None:
 
     if not os.path.exists(path):
         os.makedirs(path)
-
-    # if do_ifs:
-    #     exp_no = exp_no * nframes
-    #     nframes = ifs_wav
-    #     new_x0 = []
-    #     new_y0 = []
-    #     parang_start_new = []
-    #     parang_end_new = []
-    #     for k, _ in enumerate(x0):
-    #         for l in range(nframes):
-    #             new_x0.append(x0[k])
-    #             new_y0.append(y0[k])
-    #             parang_start_new.append(parang_start[k])
-    #             parang_end_new.append(parang_end[k])
-    #     x0 = new_x0
-    #     y0 = new_y0
-    #     parang_start = parang_start_new
-    #     parang_end = parang_end_new
 
     np.random.seed(1)
 
