@@ -400,14 +400,12 @@ def create_star_data(path: str,
 @typechecked
 def create_ifs_data(path: str) -> None:
     """
-    Create data with a stellar PSF and Gaussian noise.
+    Create IFS data with a stellar PSF and Gaussian noise.
 
     Parameters
     ----------
     path : str
         Working folder.
-    noise : bool
-        Add noise to the images.
 
     Returns
     -------

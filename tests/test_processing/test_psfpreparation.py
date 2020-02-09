@@ -128,12 +128,6 @@ class TestPsfPreparation:
 
     def test_angle_sphere_irdis(self):
 
-        ra_coord = [60000., 60000., 60000., 60000.]
-        dec_coord = [-510000., -510000., -510000., -510000.]
-
-        self.pipeline.set_attribute('read', 'RA', ra_coord, static=False)
-        self.pipeline.set_attribute('read', 'DEC', dec_coord, static=False)
-
         module = AngleCalculationModule(instrument='SPHERE/IRDIS',
                                         name_in='angle3',
                                         data_tag='read')
@@ -158,8 +152,8 @@ class TestPsfPreparation:
             assert warning[1].message.args[0] == warning_1
 
         data = self.pipeline.get_data('header_read/PARANG')
-        assert np.allclose(data[0], 170.39102715170227, rtol=limit, atol=0.)
-        assert np.allclose(np.mean(data), 170.46341123194824, rtol=limit, atol=0.)
+        assert np.allclose(data[0], -107.95978781131399, rtol=limit, atol=0.)
+        assert np.allclose(np.mean(data), -107.9544934886222, rtol=limit, atol=0.)
         assert data.shape == (40, )
 
     def test_angle_sphere_ifs(self):
@@ -168,19 +162,17 @@ class TestPsfPreparation:
         self.pipeline.set_attribute('read_ifs', 'LONGITUDE', -70., static=True)
         self.pipeline.set_attribute('read_ifs', 'DIT', 1., static=True)
 
-        ra_coord = [60.000, 60.000, 60.000, 60.000]
-        dec_coord = [-51.0000, -51.0000, -51.0000, -51.0000]
-
-        self.pipeline.set_attribute('read_ifs', 'RA', ra_coord, static=False)
-        self.pipeline.set_attribute('read_ifs', 'DEC', dec_coord, static=False)
+        self.pipeline.set_attribute('read_ifs', 'RA', [60., 60., 60., 60.], static=False)
+        self.pipeline.set_attribute('read_ifs', 'DEC', [-51., -51., -51., -51.], static=False)
         self.pipeline.set_attribute('read_ifs', 'PUPIL', [90., 90., 90., 90.], static=False)
 
         lambda_0 = [0.953, 0.953, 0.953, 0.953]
         dat_cor = ['000000.fits', '000001.fits', '000000.fits', '000001.fits']
+        exp_time = [16., 16., 16., 16.]
 
         self.pipeline.set_attribute('read_ifs', 'LAMBDA0', lambda_0, static=False)
         self.pipeline.set_attribute('read_ifs', 'DATCOR', dat_cor, static=False)
-        self.pipeline.set_attribute('read_ifs', 'EXPTIME', [16., 16., 16., 16.], static=False)
+        self.pipeline.set_attribute('read_ifs', 'EXPTIME', exp_time, static=False)
 
         date_ifs = ['2012-12-01T07:09:00.0000', '2012-12-01T07:09:01.0000',
                     '2012-12-01T07:09:02.0000', '2012-12-01T07:09:03.0000']
