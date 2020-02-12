@@ -105,7 +105,7 @@ def create_fits(path: str,
                 filename: str,
                 image: np.ndarray,
                 ndit: int,
-                exp_no: int = 0,
+                exp_no: Union[int, np.int64] = 0,
                 parang: List[float] = [0., 0.],
                 x0: float = 0.,
                 y0: float = 0.) -> None:
@@ -164,7 +164,7 @@ def create_fake(path: str,
                 sep: Union[float, None],
                 contrast: Union[float, None]) -> None:
     """
-    Create ADI or IFS test data with a fake planet.
+    Create ADI data with a fake planet.
 
     Parameters
     ----------
@@ -190,10 +190,6 @@ def create_fake(path: str,
         Separation of the planet.
     contrast : float, None
         Brightness contrast of the planet.
-    do_ifs : bool
-        If True, creates ifs data.
-    ifs_wav : int
-        Number of wavelength channels
 
     Returns
     -------
@@ -262,13 +258,18 @@ def create_ifs_fake(path: str) -> None:
         None
     """
 
-    ndit = [int(i) for i in np.ones((4*5))]
-    exp_no = [i % 5 for i in range(4*5)]
-    npix = (30, 30)
+    npix = 30
     fwhm = 3.
-    x0 = [i*15 for i in np.ones((4*5))]
-    y0 = [i*15 for i in np.ones((4*5))]
+
+    ndit = np.full(20, 6)
+    exp_no = np.linspace(1, 20, 20, dtype=int)
+
+    x0 = y0 = np.full(20, 15)
+
+    # TODO for Tomas: adjust to parang_start and parang_end, the values should be different
     angles = [[i, i] for i in np.linspace(0., 100., 20)]
+
+    # TODO for Sven: add comments to this line, why 0.953 and 0.0190526315789474?
     ifs_wav = [6, 0.953, 0.0190526315789474]
 
     if not os.path.exists(path):
@@ -280,39 +281,36 @@ def create_ifs_fake(path: str) -> None:
             parang.append(item[0]+float(j)*(item[1]-item[0])/float(ndit[i]))
 
     sigma = fwhm / (2.*math.sqrt(2.*math.log(2.)))
-    ndit = np.ones_like(ndit, dtype=int)*int(ifs_wav[0])
-    nframes = np.ones((np.sum([5, 5, 5, 5])), dtype=int)*int(ifs_wav[0])
 
-    x = np.arange(0., npix[0], 1.)
-    y = np.arange(0., npix[1], 1.)
+    x = y = np.arange(0., npix, 1.)
     xx, yy = np.meshgrid(x, y)
 
     np.random.seed(1)
 
     count = 0
-    for j, item in enumerate(nframes):
-        image = np.zeros((item, npix[1], npix[0]))
+    for j, item in enumerate(ndit):
+        image = np.zeros((item, npix, npix))
 
         for i in range(ndit[j]):
-            noise = np.random.normal(loc=0, scale=2e-4, size=(npix[1], npix[0]))
-            image[i, 0:npix[1], 0:npix[0]] = noise
+            noise = np.random.normal(loc=0, scale=2e-4, size=(npix, npix))
+            image[i, :, :] = noise
 
             sigma_c = sigma * (ifs_wav[1] + i * ifs_wav[2]) / ifs_wav[1]
 
             star = (1./(2.*np.pi*sigma_c**2))*np.exp(-((xx-x0[j])**2+(yy-y0[j])**2)/(2.*sigma_c**2))
-            image[i, 0:npix[1], 0:npix[0]] += star
+            image[i, :, :] += star
 
             planet = 3e-3*(1./(2.*np.pi*sigma_c**2))*np.exp(-((xx-x0[j])**2+(yy-y0[j])**2) / (2.*sigma_c**2))
 
             x_shift = 10*math.cos(parang[count]*math.pi/180.)
             y_shift = 10*math.sin(parang[count]*math.pi/180.)
             planet = shift(planet, (x_shift, y_shift), order=5)
-            image[i, 0:npix[1], 0:npix[0]] += planet
+            image[i, :] += planet
 
         count += 1
 
         create_fits(path, 'image'+str(j+1).zfill(2)+'.fits', image, int(ndit[j]), exp_no[j],
-                    angles[j], x0[j]-npix[0]/2., y0[j]-npix[1]/2.)
+                    angles[j], x0[j]-npix/2., y0[j]-npix/2.)
 
 
 @typechecked
