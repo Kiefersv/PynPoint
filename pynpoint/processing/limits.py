@@ -18,10 +18,12 @@ from typeguard import typechecked
 
 from pynpoint.core.processing import ProcessingModule
 from pynpoint.util.image import create_mask
-from pynpoint.util.limits import contrast_limit
 from pynpoint.util.module import progress
-from pynpoint.util.psf import pca_psf_subtraction
 from pynpoint.util.residuals import combine_residuals
+from pynpoint.util.sdi import postprocessor, spec_contrast_limit, \
+                              filter_scaling_calc
+from pynpoint.util.ifs import scaling_calculation
+
 
 
 class ContrastCurveModule(ProcessingModule):
@@ -31,7 +33,7 @@ class ContrastCurveModule(ProcessingModule):
     parallel if ``CPU`` is set to a value larger than 1 in the configuration file.
     """
 
-    __author__ = 'Tomas Stolker, Jasper Jonker, Benedikt Schmidhuber'
+    __author__ = 'Tomas Stolker, Jasper Jonker, Benedikt Schmidhuber, Sven Kiefer'
 
     @typechecked
     def __init__(self,
@@ -42,7 +44,8 @@ class ContrastCurveModule(ProcessingModule):
                  separation: Tuple[float, float, float] = (0.1, 1., 0.01),
                  angle: Tuple[float, float, float] = (0., 360., 60.),
                  threshold: Tuple[str, float] = ('sigma', 5.),
-                 psf_scaling: float = 1.,
+                 psf_scaling: float = None,
+                 flux_filter: str = 'ND_0.0',
                  aperture: float = 0.05,
                  pca_number: int = 20,
                  cent_size: float = None,
@@ -50,6 +53,7 @@ class ContrastCurveModule(ProcessingModule):
                  extra_rot: float = 0.,
                  residuals: str = 'median',
                  snr_inject: float = 100.,
+                 processing_type: str = 'Tadi',
                  **kwargs: float) -> None:
         """
         Parameters
@@ -81,7 +85,11 @@ class ContrastCurveModule(ProcessingModule):
             normal distribution at large separations (i.e., large number of samples).
         psf_scaling : float
             Additional scaling factor of the planet flux (e.g., to correct for a neutral density
-            filter). Should have a positive value.
+            filter). Should have a positive value. It is calculated
+            internaly if set to None.
+        flux_filter : str
+            Only used if psf_scaling = None. Used to calculated the psf scaling internaly. Only
+            SPHERE currently supprted. Possible filters ND_0.0, ND_1.0, ND_2.0 and ND_3.5.
         aperture : float
             Aperture radius (arcsec).
         pca_number : int
@@ -99,6 +107,16 @@ class ContrastCurveModule(ProcessingModule):
         snr_inject : float
             Signal-to-noise ratio of the injected planet signal that is used to measure the amount
             of self-subtraction.
+        processing_type : str
+            Type of post processing. Currently supported: 
+                Cadi: Applay ADI and combining all wavelengths 
+                Wadi: Applay ADI and returning all wavelengths 
+                Csdi: Applay SDI and combining all wavelengths 
+                Csaap: Applay SDI and ADI simultaniously and combining all wavelengths 
+                Wsap: Applay SDI then ADI and returning all wavelengths 
+                Csap: Applay SDI then ADI and combining all wavelengths 
+                Wasp: Applay ADI then SDI and returning all wavelengths 
+                Casp: Applay ADI then SDI and combining all wavelengths 
 
         Returns
         -------
@@ -140,6 +158,7 @@ class ContrastCurveModule(ProcessingModule):
         self.m_separation = separation
         self.m_angle = angle
         self.m_psf_scaling = psf_scaling
+        self.m_flux_filter = flux_filter
         self.m_threshold = threshold
         self.m_aperture = aperture
         self.m_pca_number = pca_number
@@ -148,12 +167,20 @@ class ContrastCurveModule(ProcessingModule):
         self.m_extra_rot = extra_rot
         self.m_residuals = residuals
         self.m_snr_inject = snr_inject
+        self.m_processing_type = processing_type
 
         if self.m_angle[0] < 0. or self.m_angle[0] > 360. or self.m_angle[1] < 0. or \
            self.m_angle[1] > 360. or self.m_angle[2] < 0. or self.m_angle[2] > 360.:
 
             raise ValueError('The angular positions of the fake planets should lie between '
                              '0 deg and 360 deg.')
+    
+    
+    
+    
+    
+    
+
 
     @typechecked
     def run(self) -> None:
@@ -171,20 +198,80 @@ class ContrastCurveModule(ProcessingModule):
             None
         """
 
-        images = self.m_image_in_port.get_all()
-        psf = self.m_psf_in_port.get_all()
+        sys.stdout.write('Running ContrastCurveModule...\r')
 
+        images = self.m_image_in_port.get_all()
+        psf_pre = self.m_psf_in_port.get_all()
+        
+        
+        # zero padding of psf
+        psf_nbr_size = psf_pre.shape[0]
+        img_pic_size = images.shape[1]
+        psf_pic_size = psf_pre.shape[1]
+        
+        psf_padded = np.zeros((psf_nbr_size, img_pic_size, img_pic_size))
+        
+        for i, psf_i in enumerate(psf_pre):
+            
+            psf_padded[i] = np.median(psf_i)
+            
+            f1 = (img_pic_size - psf_pic_size)//2
+            f2 = (img_pic_size + psf_pic_size)//2
+            
+            psf_padded[i, f1:f2, f1:f2] = psf_i 
+        
+        psf_pre = psf_padded
+
+        
+        # Gather config info
+        cpu = self._m_config_port.get_attribute('CPU')
+        working_place = self._m_config_port.get_attribute('WORKING_PLACE')
+        
+        # Gather image info
+        parang = self.m_image_in_port.get_attribute('PARANG')
+        pixscale = self.m_image_in_port.get_attribute('PIXSCALE')
+        timee = self.m_image_in_port.get_attribute('TIME')
+        science_time = self.m_image_in_port.get_attribute('EXPTIME')
+        lam = self.m_image_in_port.get_attribute('LAMBDA')
+        lamd = self.m_image_in_port.get_attribute('LAMBDAD')
+        
+        # Gather flux info
+        flux_time = self.m_psf_in_port.get_attribute('EXPTIME')
+        lam_fl = self.m_psf_in_port.get_attribute('LAMBDA')
+        
+        if lam is None:
+            lam = np.ones_like(images[:,0,0])
+        
+        scaling = scaling_calculation(pixscale, lam)
+        
+        
+        # Setting psf according to images and wavelength information
+        if self.m_psf_scaling is None:
+            self.m_psf_scaling = np.ones_like(images[:,0,0])
+            psf = np.ones_like(images)
+            for l, _ in enumerate(images):
+                
+                self.m_psf_scaling[l] = filter_scaling_calc(science_time=science_time[0],
+                                                            flux_time=flux_time[0],
+                                                            wavelength=lam[l],
+                                                            delta_wavelength=lamd[0],
+                                                            flux_filter=self.m_flux_filter).nominal_value
+                                  
+                                  
+                # directly applying psf correction
+                mask_l = (lam[l] == lam_fl)
+                psf[l] = np.median(psf_pre[mask_l], axis=0) * self.m_psf_scaling[l]
+                                  
+        else:
+            psf = psf_pre * self.m_psf_scaling
+            
+        
         if psf.shape[0] != 1 and psf.shape[0] != images.shape[0]:
             raise ValueError(f'The number of frames in psf_in_tag {psf.shape} does not match with '
                              f'the number of frames in image_in_tag {images.shape}. The '
                              f'DerotateAndStackModule can be used to average the PSF frames '
                              f'(without derotating) before applying the ContrastCurveModule.')
-
-        cpu = self._m_config_port.get_attribute('CPU')
-        working_place = self._m_config_port.get_attribute('WORKING_PLACE')
-
-        parang = self.m_image_in_port.get_attribute('PARANG')
-        pixscale = self.m_image_in_port.get_attribute('PIXSCALE')
+                  
 
         self.m_image_in_port.close_port()
         self.m_psf_in_port.close_port()
@@ -235,83 +322,126 @@ class ContrastCurveModule(ProcessingModule):
         np.save(tmp_psf_str, psf)
 
         mask = create_mask(images.shape[-2:], (self.m_cent_size, self.m_edge_size))
+        
+        
+        # Pre noise calculation
+        _, im_res = postprocessor(images=images,
+                                  parang=parang,
+                                  scales=scaling,
+                                  pca_number=self.m_pca_number,
+                                  mask=mask,
+                                  processing_type=self.m_processing_type)
 
-        _, im_res = pca_psf_subtraction(images=images*mask,
-                                        angles=-1.*parang+self.m_extra_rot,
-                                        pca_number=self.m_pca_number)
 
-        noise = combine_residuals(method=self.m_residuals, res_rot=im_res)
+        noise = combine_residuals(method = self.m_residuals,
+                                  res_rot = im_res,
+                                  lam=lam,
+                                  processing_type = self.m_processing_type)
+        
 
+        
         pool = mp.Pool(cpu)
+                    
 
         for pos in positions:
-            async_results.append(pool.apply_async(contrast_limit,
+            async_results.append(pool.apply_async(spec_contrast_limit,
                                                   args=(tmp_im_str,
                                                         tmp_psf_str,
                                                         noise,
                                                         mask,
                                                         parang,
-                                                        self.m_psf_scaling,
+                                                        lam,
+                                                        timee,
+                                                        scaling,
+                                                        pixscale,
                                                         self.m_extra_rot,
                                                         self.m_pca_number,
                                                         self.m_threshold,
                                                         self.m_aperture,
                                                         self.m_residuals,
                                                         self.m_snr_inject,
-                                                        pos)))
+                                                        pos,
+                                                        self.m_processing_type)))
 
         pool.close()
 
         start_time = time.time()
+        
 
         # wait for all processes to finish
         while mp.active_children():
+            
             # number of finished processes
             nfinished = sum([i.ready() for i in async_results])
 
-            progress(nfinished, len(positions), 'Calculating detection limits...', start_time)
+            progress(nfinished, len(async_results), 'Running ContrastCurveModule...', start_time)
 
             # check if new processes have finished every 5 seconds
             time.sleep(5)
-
-        if nfinished != len(positions):
-            sys.stdout.write('\r                                                      ')
-            sys.stdout.write('\rCalculating detection limits... [DONE]\n')
-            sys.stdout.flush()
+            
 
         # get the results for every async_result object
         for item in async_results:
+            print(item)
+            print(item.get())
             result.append(item.get())
 
         pool.terminate()
-
+        
+        
         os.remove(tmp_im_str)
         os.remove(tmp_psf_str)
-
-        result = np.asarray(result)
-
-        # Sort the results first by separation and then by angle
-        indices = np.lexsort((result[:, 1], result[:, 0]))
-        result = result[indices]
-
-        result = result.reshape((pos_r.size, pos_t.size, 4))
-
-        mag_mean = np.nanmean(result, axis=1)[:, 2]
-        mag_var = np.nanvar(result, axis=1)[:, 2]
-        res_fpf = result[:, 0, 3]
-
-        limits = np.column_stack((pos_r*pixscale, mag_mean, mag_var, res_fpf))
+        
+        result_total = np.asarray(result)
+        limits = np.zeros((len(noise), len(pos_r), 4))
+        
+        for rr, lim in enumerate(limits):
+            result_i = result_total[:,:,rr]
+    
+            # Sort the results first by separation and then by angle
+            indices = np.lexsort((result_i[:, 1], result_i[:, 0]))
+            result_i = result_i[indices]
+    
+            result_i = result_i.reshape((pos_r.size, pos_t.size, 4))
+    
+            mag_mean = np.nanmean(result_i, axis=1)[:, 2]
+            mag_var = np.nanvar(result_i, axis=1)[:, 2]
+            res_fpf = result_i[:, 0, 3]
+    
+            limits[rr] = np.column_stack((pos_r*pixscale, mag_mean, mag_var, res_fpf))
+            
+        
+        
+        
 
         self.m_image_in_port._check_status_and_activate()
         self.m_contrast_out_port._check_status_and_activate()
 
-        self.m_contrast_out_port.set_all(limits, data_dim=2)
+
+        
+        # Output For backwards compatability: Delete if no longer necessary
+        # --- Start
+        print(limits.shape, '----------------------------------')
+        if len(limits) == 1:
+            limits = limits[0]
+            self.m_contrast_out_port.set_all(limits, data_dim=2)
+        # --- End
+        else: 
+            self.m_contrast_out_port.set_all(limits, data_dim=3)
+        print(limits.shape, '----------------------------------')
+
+        sys.stdout.write('\r                                       ')
+        sys.stdout.write('\rRunning ContrastCurveModule... [DONE]\n')
+        sys.stdout.flush()
 
         history = f'{self.m_threshold[0]} = {self.m_threshold[1]}'
         self.m_contrast_out_port.add_history('ContrastCurveModule', history)
         self.m_contrast_out_port.copy_attributes(self.m_image_in_port)
         self.m_contrast_out_port.close_port()
-
+        
+        
+        
+ 
 
 class MassLimitsModule(ProcessingModule):
     """

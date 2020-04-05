@@ -2,6 +2,7 @@
 Pipeline modules for frame selection.
 """
 
+import sys
 import time
 import math
 import warnings
@@ -113,7 +114,7 @@ class RemoveFramesModule(ProcessingModule):
         start_time = time.time()
 
         for i, _ in enumerate(frames[:-1]):
-            progress(i, len(frames[:-1]), 'Removing images...', start_time)
+            progress(i, len(frames[:-1]), 'Running RemoveFramesModule...', start_time)
 
             images = self.m_image_in_port[frames[i]:frames[i+1], ]
 
@@ -124,6 +125,9 @@ class RemoveFramesModule(ProcessingModule):
                                 self.m_frames[index_del] % memory,
                                 self.m_selected_out_port,
                                 self.m_removed_out_port)
+
+        sys.stdout.write('Running RemoveFramesModule... [DONE]\n')
+        sys.stdout.flush()
 
         history = f'frames removed = {np.size(self.m_frames)}'
 
@@ -159,7 +163,7 @@ class FrameSelectionModule(ProcessingModule):
                  selected_out_tag: str,
                  removed_out_tag: str,
                  index_out_tag: str = None,
-                 method: str = 'median',
+                 method='median',
                  threshold: float = 4.,
                  fwhm: float = 0.1,
                  aperture: Union[Tuple[str, float], Tuple[str, float, float]] = ('circular', 0.2),
@@ -331,20 +335,17 @@ class FrameSelectionModule(ProcessingModule):
         start_time = time.time()
 
         for i in range(nimages):
-            progress(i, nimages, 'Aperture photometry...', start_time)
+            progress(i, nimages, 'Running FrameSelectionModule...', start_time)
 
             phot[i] = self.photometry(self.m_image_in_port[i, ], starpos[i, :], self.m_aperture)
 
         if self.m_method == 'median':
             phot_ref = np.nanmedian(phot)
-            print(f'Median = {phot_ref:.2f}')
 
         elif self.m_method == 'max':
             phot_ref = np.nanmax(phot)
-            print(f'Maximum = {phot_ref:.2f}')
 
         phot_std = np.nanstd(phot)
-        print(f'Standard deviation = {phot_std:.2f}')
 
         index_rm = np.logical_or((phot > phot_ref + self.m_threshold*phot_std),
                                  (phot < phot_ref - self.m_threshold*phot_std))
@@ -359,11 +360,7 @@ class FrameSelectionModule(ProcessingModule):
             if memory == 0 or memory >= nimages:
                 memory = nimages
 
-            start_time = time.time()
-
             for i, _ in enumerate(frames[:-1]):
-                progress(i, len(frames[:-1]), 'Writing selected data...', start_time)
-
                 index_del = np.where(np.logical_and(indices >= frames[i],
                                                     indices < frames[i+1]))
 
@@ -409,6 +406,9 @@ class FrameSelectionModule(ProcessingModule):
                                               static=False)
 
         self.m_removed_out_port.add_history('FrameSelectionModule', history)
+
+        sys.stdout.write('Running FrameSelectionModule... [DONE]\n')
+        sys.stdout.flush()
 
         self.m_image_in_port.close_port()
 
@@ -471,7 +471,7 @@ class RemoveLastFrameModule(ProcessingModule):
 
         start_time = time.time()
         for i, item in enumerate(ndit):
-            progress(i, len(ndit), 'Removing the last image of each FITS cube...', start_time)
+            progress(i, len(ndit), 'Running RemoveLastFrameModule...', start_time)
 
             if nframes[i] != item+1:
                 warnings.warn(f'Number of frames ({nframes[i]}) is not equal to NDIT+1.')
@@ -486,6 +486,9 @@ class RemoveLastFrameModule(ProcessingModule):
 
         nframes_new = np.asarray(nframes_new, dtype=np.int)
         index_new = np.asarray(index_new, dtype=np.int)
+
+        sys.stdout.write('Running RemoveLastFrameModule... [DONE]\n')
+        sys.stdout.flush()
 
         self.m_image_out_port.copy_attributes(self.m_image_in_port)
 
@@ -578,7 +581,7 @@ class RemoveStartFramesModule(ProcessingModule):
 
         start_time = time.time()
         for i, _ in enumerate(nframes):
-            progress(i, len(nframes), 'Removing images at the begin of each cube...', start_time)
+            progress(i, len(nframes), 'Running RemoveStartFramesModule...', start_time)
 
             frame_start = np.sum(nframes[0:i]) + self.m_frames
             frame_end = np.sum(nframes[0:i+1])
@@ -596,6 +599,9 @@ class RemoveStartFramesModule(ProcessingModule):
                 star_new.extend(star[frame_start:frame_end])
 
             self.m_image_out_port.append(self.m_image_in_port[frame_start:frame_end, ])
+
+        sys.stdout.write('Running RemoveStartFramesModule... [DONE]\n')
+        sys.stdout.flush()
 
         self.m_image_out_port.copy_attributes(self.m_image_in_port)
 
@@ -715,7 +721,7 @@ class ImageStatisticsModule(ProcessingModule):
         self.apply_function_to_images(_image_stat,
                                       self.m_image_in_port,
                                       self.m_stat_out_port,
-                                      'Calculating image statistics',
+                                      'Running ImageStatisticsModule',
                                       func_args=(indices, ))
 
         history = f'number of images = {nimages}'
@@ -891,7 +897,7 @@ class FrameSimilarityModule(ProcessingModule):
             # number of finished processes
             nfinished = sum([i.ready() for i in async_results])
 
-            progress(nfinished, nimages, 'Calculating image similarity', start_time)
+            progress(nfinished, nimages, 'Running FrameSimilarityModule', start_time)
 
             # check if new processes have finished every 5 seconds
             time.sleep(5)
@@ -1052,7 +1058,7 @@ class SelectByAttributeModule(ProcessingModule):
                                     self.m_removed_out_port,
                                     self.m_selected_out_port)
 
-                progress(i, len(frames[:-1]), 'Selecting images by attribute...', start_time)
+                progress(i, len(frames[:-1]), 'Running SelectByAttributeModule...', start_time)
 
         else:
             warnings.warn('No frames were removed.')
@@ -1070,3 +1076,483 @@ class SelectByAttributeModule(ProcessingModule):
                                   self.m_image_in_port,
                                   self.m_removed_out_port,
                                   self.m_selected_out_port)
+
+        sys.stdout.write('Running SelectByAttributeModule... [DONE]\n')
+        sys.stdout.flush()
+
+
+
+
+#
+#
+#
+#
+#
+#
+#class SelectGivenAttributesModule(ProcessingModule):
+#    """
+#    Pipeline module for selecting frames based on attribute values.
+#    """
+#
+#    __author__ = 'Sven Kiefer'
+#
+#    @typechecked
+#    def __init__(self,
+#                 name_in: str,
+#                 image_in_tag: str,
+#                 selected_out_tag: str,
+#                 removed_out_tag: str,
+#                 attribute_tag: str,
+#                 attribute_value: str) -> None:
+#        
+#        """
+#        Parameters
+#        ----------
+#        name_in : str
+#            Unique name of the module instance.
+#        image_tag : str
+#            Tag of the database entry that is read as input.
+#        selected_out_tag : str
+#            Tag of the database entry to which the selected frames are written.
+#        removed_out_tag : str
+#            Tag of the database entry to which the removed frames are written.
+#        attribute_tag : str
+#            Name of the attribute which is used to sort and select the frames.
+#
+#        Returns
+#        -------
+#        NoneType
+#            None
+#
+#        Examples
+#        --------
+#        The example below selects the first 100 frames with an ascending order of the ``INDEX``
+#        values that are stored to the 'im_arr' dataset::
+#
+#            SelectByAttributeModule(name_in='frame_selection',
+#                                    image_in_tag='im_arr',
+#                                    attribute_tag='INDEX',
+#                                    selected_out_tag='im_arr_selected',
+#                                    removed_out_tag='im_arr_removed'))
+#
+#        The example below selects the 200 frames with the largest ``SSIM`` values that
+#        are stored to the 'im_arr' dataset::
+#
+#            SelectByAttributeModule(name_in='frame_selection',
+#                                    image_in_tag='im_arr',
+#                                    attribute_tag='SSIM',
+#                                    selected_out_tag='im_arr_selected',
+#                                    removed_out_tag='im_arr_removed'))
+#        """
+#
+#        super(SelectGivenAttributesModule, self).__init__(name_in)
+#
+#        self.m_image_in_port = self.add_input_port(image_in_tag)
+#        self.m_selected_out_port = self.add_output_port(selected_out_tag)
+#        self.m_removed_out_port = self.add_output_port(removed_out_tag)
+#
+#
+#        self.m_attribute_tag = attribute_tag
+#        self.m_attribute_value = attribute_value
+#
+#    @typechecked
+#    def run(self) -> None:
+#        """
+#        Run method of the module. Selects images according to a specified attribute tag and
+#        ordering, e.g. the highest 150 ``INDEX`` frames, or the lowest 50 ``PCC`` frames.
+#
+#        Returns
+#        -------
+#        NoneType
+#            None
+#        """
+#
+#        if self.m_selected_out_port is not None:
+#            self.m_selected_out_port.del_all_data()
+#            self.m_selected_out_port.del_all_attributes()
+#
+#        if self.m_removed_out_port is not None:
+#            self.m_removed_out_port.del_all_data()
+#            self.m_removed_out_port.del_all_attributes()
+#
+#        images = self.m_image_in_port.get_all()
+#        nimages = images.shape[0]
+#
+#        attribute = self.m_image_in_port.get_attribute(f'{self.m_attribute_tag}')
+#
+#        if nimages != len(attribute):
+#            raise ValueError(f'The attribute {{self.m_attribute_tag}} does not have the same '
+#                             f'length ({len(attribute)}) as the tag has images ({nimages}). '
+#                             f'Please check the attribute you have chosen for selection.')
+#
+#        index = self.m_image_in_port.get_attribute('INDEX')
+#
+#        mask = np.zeros_like(attribute)
+#        count = 0
+#        for i in range(len(mask)):
+#            if (self.m_attribute_value == str(attribute[i])):
+#                count += 1
+#                mask[i] = i+1
+#            
+#        sorting_order = np.argsort(mask)[::-1]
+#        attribute = attribute[sorting_order]
+#        index = index[sorting_order]
+#        indices = index[:count]
+#        
+#        # copied from FrameSelectionModule ... some adjustments
+#        # possibly refactor to @staticmethod or move to util.remove
+#        start_time = time.time()
+#        if np.size(indices) > 0:
+#            memory = self._m_config_port.get_attribute('MEMORY')
+#            frames = memory_frames(memory, nimages)
+#
+#            if memory == 0 or memory >= nimages:
+#                memory = nimages
+#
+#            for i, _ in enumerate(frames[:-1]):
+#                images = self.m_image_in_port[frames[i]:frames[i+1], ]
+#
+#                index_del = np.where(np.logical_and(indices >= frames[i],
+#                                                    indices < frames[i+1]))
+#
+#                write_selected_data(images,
+#                                    indices[index_del] % memory,
+#                                    self.m_removed_out_port,
+#                                    self.m_selected_out_port)
+#
+#                progress(i, len(frames[:-1]), 'Running SelectByAttributeModule...', start_time)
+#                
+#
+#        else:
+#            warnings.warn('No frames were removed.')
+#
+#        if self.m_selected_out_port is not None:
+#            # Copy attributes before write_selected_attributes is used
+#            self.m_selected_out_port.copy_attributes(self.m_image_in_port)
+#
+#        if self.m_removed_out_port is not None:
+#            # Copy attributes before write_selected_attributes is used
+#            self.m_removed_out_port.copy_attributes(self.m_image_in_port)
+#
+#        # write the selected and removed data to the respective output ports
+#        write_selected_attributes(indices,
+#                                  self.m_image_in_port,
+#                                  self.m_removed_out_port,
+#                                  self.m_selected_out_port)
+#        
+#
+#        sys.stdout.write('Running SelectByAttributeModule... [DONE]\n')
+#        sys.stdout.flush()
+#
+
+
+
+
+class SelectGivenAttributesModule(ProcessingModule):
+    """
+    Pipeline module for selecting frames based on attribute values.
+    """
+
+    __author__ = 'Sven Kiefer'
+
+    @typechecked
+    def __init__(self,
+                 name_in: str,
+                 image_in_tag: str,
+                 selected_out_tag: str,
+                 attribute_tag: str,
+                 attribute_value: str) -> None:
+        
+        """
+        Parameters
+        ----------
+        name_in : str
+            Unique name of the module instance.
+        image_tag : str
+            Tag of the database entry that is read as input.
+        selected_out_tag : str
+            Tag of the database entry to which the selected frames are written.
+        removed_out_tag : str
+            Tag of the database entry to which the removed frames are written.
+        attribute_tag : str
+            Name of the attribute which is used to sort and select the frames.
+
+        Returns
+        -------
+        NoneType
+            None
+
+        Examples
+        --------
+        The example below selects the first 100 frames with an ascending order of the ``INDEX``
+        values that are stored to the 'im_arr' dataset::
+
+            SelectByAttributeModule(name_in='frame_selection',
+                                    image_in_tag='im_arr',
+                                    attribute_tag='INDEX',
+                                    selected_out_tag='im_arr_selected',
+                                    removed_out_tag='im_arr_removed'))
+
+        The example below selects the 200 frames with the largest ``SSIM`` values that
+        are stored to the 'im_arr' dataset::
+
+            SelectByAttributeModule(name_in='frame_selection',
+                                    image_in_tag='im_arr',
+                                    attribute_tag='SSIM',
+                                    selected_out_tag='im_arr_selected',
+                                    removed_out_tag='im_arr_removed'))
+        """
+
+        super(SelectGivenAttributesModule, self).__init__(name_in)
+
+        self.m_image_in_port = self.add_input_port(image_in_tag)
+        self.m_selected_out_port = self.add_output_port(selected_out_tag)
+
+
+        self.m_attribute_tag = attribute_tag
+        self.m_attribute_value = attribute_value
+
+    @typechecked
+    def run(self) -> None:
+        """
+        Run method of the module. Selects images according to a specified attribute tag and
+        ordering, e.g. the highest 150 ``INDEX`` frames, or the lowest 50 ``PCC`` frames.
+
+        Returns
+        -------
+        NoneType
+            None
+        """
+
+        if self.m_selected_out_port is not None:
+            self.m_selected_out_port.del_all_data()
+            self.m_selected_out_port.del_all_attributes()
+
+        images = self.m_image_in_port.get_all()
+        nimages = images.shape[0]
+
+        attribute = self.m_image_in_port.get_attribute(f'{self.m_attribute_tag}')
+
+        if nimages != len(attribute):
+            raise ValueError(f'The attribute {{self.m_attribute_tag}} does not have the same '
+                             f'length ({len(attribute)}) as the tag has images ({nimages}). '
+                             f'Please check the attribute you have chosen for selection.')
+
+        index = self.m_image_in_port.get_attribute('INDEX')
+
+        mask = np.zeros_like(attribute)
+        count = 0
+        for i in range(len(mask)):
+            if (self.m_attribute_value == str(attribute[i])):
+                count += 1
+                mask[i] = i+1
+            
+        
+        sorting_order = np.argsort(mask)
+        attribute = attribute[sorting_order]
+        index = index[sorting_order]
+        indices = index[-count:]
+        
+        # copied from FrameSelectionModule ... some adjustments
+        # possibly refactor to @staticmethod or move to util.remove
+        start_time = time.time()
+        if np.size(indices) > 0:
+            memory = self._m_config_port.get_attribute('MEMORY')
+            frames = memory_frames(memory, nimages)
+
+            if memory == 0 or memory >= nimages:
+                memory = nimages
+
+            for i, _ in enumerate(frames[:-1]):
+                images = self.m_image_in_port[frames[i]:frames[i+1], ]
+
+                index_del = np.where(np.logical_and(indices >= frames[i],
+                                                    indices < frames[i+1]))
+
+                write_selected_data(images,
+                                    indices[index_del] % memory,
+                                    None,
+                                    self.m_selected_out_port)
+
+                progress(i, len(frames[:-1]), 'Running SelectByAttributeModule...', start_time)
+                
+
+        else:
+            warnings.warn('No frames were removed.')
+
+        if self.m_selected_out_port is not None:
+            # Copy attributes before write_selected_attributes is used
+            self.m_selected_out_port.copy_attributes(self.m_image_in_port)
+
+
+        # write the selected and removed data to the respective output ports
+        write_selected_attributes(indices,
+                                  self.m_image_in_port,
+                                  None,
+                                  self.m_selected_out_port)
+        
+
+        sys.stdout.write('Running SelectByAttributeModule... [DONE]\n')
+        sys.stdout.flush()
+
+
+
+
+#
+#
+#class SelectGivenAttributesModule1(ProcessingModule):
+#    """
+#    Pipeline module for selecting frames based on attribute values.
+#    """
+#
+#    __author__ = 'Sven Kiefer'
+#
+#    @typechecked
+#    def __init__(self,
+#                 name_in: str,
+#                 image_in_tag: str,
+#                 image_out_tag: str,
+#                 attribute_tag: str) -> None:
+#        
+#        """
+#        Parameters
+#        ----------
+#        name_in : str
+#            Unique name of the module instance.
+#        image_tag : str
+#            Tag of the database entry that is read as input.
+#        selected_out_tag : str
+#            Tag of the database entry to which the selected frames are written.
+#        removed_out_tag : str
+#            Tag of the database entry to which the removed frames are written.
+#        attribute_tag : str
+#            Name of the attribute which is used to sort and select the frames.
+#
+#        Returns
+#        -------
+#        NoneType
+#            None
+#
+#        Examples
+#        --------
+#        The example below selects the first 100 frames with an ascending order of the ``INDEX``
+#        values that are stored to the 'im_arr' dataset::
+#
+#            SelectByAttributeModule(name_in='frame_selection',
+#                                    image_in_tag='im_arr',
+#                                    attribute_tag='INDEX',
+#                                    selected_out_tag='im_arr_selected',
+#                                    removed_out_tag='im_arr_removed'))
+#
+#        The example below selects the 200 frames with the largest ``SSIM`` values that
+#        are stored to the 'im_arr' dataset::
+#
+#            SelectByAttributeModule(name_in='frame_selection',
+#                                    image_in_tag='im_arr',
+#                                    attribute_tag='SSIM',
+#                                    selected_out_tag='im_arr_selected',
+#                                    removed_out_tag='im_arr_removed'))
+#        """
+#
+#        super(SelectGivenAttributesModule1, self).__init__(name_in)
+#
+#        self.m_image_in_port = self.add_input_port(image_in_tag)
+#        self.m_selected_out_port = self.add_output_port(image_out_tag)
+#        self.m_removed_out_port = self.add_output_port('trash')
+#
+#
+#        self.m_attribute_tag = attribute_tag
+#
+#    @typechecked
+#    def run(self) -> None:
+#        """
+#        Run method of the module. Selects images according to a specified attribute tag and
+#        ordering, e.g. the highest 150 ``INDEX`` frames, or the lowest 50 ``PCC`` frames.
+#
+#        Returns
+#        -------
+#        NoneType
+#            None
+#        """
+#
+#        if self.m_selected_out_port is not None:
+#            self.m_selected_out_port.del_all_data()
+#            self.m_selected_out_port.del_all_attributes()
+#
+#        if self.m_removed_out_port is not None:
+#            self.m_removed_out_port.del_all_data()
+#            self.m_removed_out_port.del_all_attributes()
+#
+#        images = self.m_image_in_port.get_all()
+#        nimages = images.shape[0]
+#
+#        attribute = self.m_image_in_port.get_attribute(f'{self.m_attribute_tag}')
+#        dif_att = list(set(attribute))
+#
+#        if nimages != len(attribute):
+#            raise ValueError(f'The attribute {{self.m_attribute_tag}} does not have the same '
+#                             f'length ({len(attribute)}) as the tag has images ({nimages}). '
+#                             f'Please check the attribute you have chosen for selection.')
+#
+#        index = self.m_image_in_port.get_attribute('INDEX')
+#
+#        mask = np.zeros_like(attribute)
+#        count = np.zeros_like(dif_att)
+#        atcut = 0
+#        for j in range(len(dif_att)):
+#            for i in range(len(mask)):
+#                if (dif_att[j] == attribute[i]):
+#                    mask[i] = atcut + count[j] + 1
+#                    count[j] += 1
+#            atcut += len(mask)/len(dif_att)
+#            
+#        sorting_order = np.argsort(mask)[::-1]
+#        attribute = attribute[sorting_order]
+#        index = index[sorting_order]
+#        
+#        
+#        start_time = time.time()
+#        for ct in count: 
+#            indices = index[:count[ct]]
+#            
+#            if np.size(indices) > 0:
+#                memory = self._m_config_port.get_attribute('MEMORY')
+#                frames = memory_frames(memory, nimages)
+#    
+#                if memory == 0 or memory >= nimages:
+#                    memory = nimages
+#    
+#                for i, _ in enumerate(frames[:-1]):
+#                    images = self.m_image_in_port[frames[i]:frames[i+1], ]
+#    
+#                    index_del = np.where(np.logical_and(indices >= frames[i],
+#                                                        indices < frames[i+1]))
+#    
+#                    write_selected_data(images,
+#                                        indices[index_del] % memory,
+#                                        self.m_removed_out_port,
+#                                        self.m_selected_out_port)
+#    
+#                    progress(i, len(frames[:-1]), 'Running SelectByAttributeModule...', start_time)
+#                    
+#    
+#            else:
+#                warnings.warn('No frames were removed.')
+#    
+#            if self.m_selected_out_port is not None:
+#                # Copy attributes before write_selected_attributes is used
+#                self.m_selected_out_port.copy_attributes(self.m_image_in_port)
+#    
+#            if self.m_removed_out_port is not None:
+#                # Copy attributes before write_selected_attributes is used
+#                self.m_removed_out_port.copy_attributes(self.m_image_in_port)
+#    
+#            # write the selected and removed data to the respective output ports
+#            write_selected_attributes(indices,
+#                                      self.m_image_in_port,
+#                                      self.m_removed_out_port,
+#                                      self.m_selected_out_port)
+#            
+#    
+#            sys.stdout.write('Running SelectByAttributeModule... [DONE]\n')
+#            sys.stdout.flush()

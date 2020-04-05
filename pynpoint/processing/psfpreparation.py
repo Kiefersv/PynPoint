@@ -2,6 +2,7 @@
 Pipeline modules to prepare the data for the PSF subtraction.
 """
 
+import sys
 import time
 import warnings
 
@@ -133,7 +134,7 @@ class PSFpreparationModule(ProcessingModule):
         for i, _ in enumerate(frames[:-1]):
 
             # Print progress to command line
-            progress(i, len(frames[:-1]), 'Preparing images for PSF subtraction...', start_time)
+            progress(i, len(frames[:-1]), 'Running PSFpreparationModule...', start_time)
 
             # Get the images and ensure they have the correct 3D shape with the following
             # three dimensions: (batch_size, height, width)
@@ -181,6 +182,9 @@ class PSFpreparationModule(ProcessingModule):
             self.m_image_out_port.add_attribute(name='edge_size',
                                                 value=self.m_edge_size * pixscale,
                                                 static=True)
+
+        sys.stdout.write('Running PSFpreparationModule... [DONE]\n')
+        sys.stdout.flush()
 
 
 class AngleInterpolationModule(ProcessingModule):
@@ -246,7 +250,7 @@ class AngleInterpolationModule(ProcessingModule):
 
         start_time = time.time()
         for i, _ in enumerate(parang_start):
-            progress(i, len(parang_start), 'Interpolating parallactic angles...', start_time)
+            progress(i, len(parang_start), 'Running AngleInterpolationModule...', start_time)
 
             if parang_start[i] < -170. and parang_end[i] > 170.:
                 parang_start[i] += 360.
@@ -263,6 +267,9 @@ class AngleInterpolationModule(ProcessingModule):
                                        np.linspace(parang_start[i],
                                                    parang_end[i],
                                                    num=steps[i]))
+
+        sys.stdout.write('Running AngleInterpolationModule... [DONE]\n')
+        sys.stdout.flush()
 
         self.m_data_out_port.add_attribute('PARANG',
                                            new_angles,
@@ -339,6 +346,13 @@ class SortParangModule(ProcessingModule):
         else:
             star_new = None
 
+        if 'LAMBDA' in self.m_image_in_port.get_all_non_static_attributes():
+            lamb = self.m_image_in_port.get_attribute('LAMBDA')
+            lamb_new = np.zeros(lamb.shape)
+
+        else:
+            lamb_new = None
+
         index_sort = np.argsort(index)
 
         nimages = self.m_image_in_port.get_shape()[0]
@@ -347,7 +361,7 @@ class SortParangModule(ProcessingModule):
 
         start_time = time.time()
         for i, _ in enumerate(frames[:-1]):
-            progress(i, len(frames[:-1]), 'Sorting images in time...', start_time)
+            progress(i, len(frames[:-1]), 'Running SortParangModule...', start_time)
 
             index_new[frames[i]:frames[i+1]] = index[index_sort[frames[i]:frames[i+1]]]
 
@@ -357,9 +371,15 @@ class SortParangModule(ProcessingModule):
             if star_new is not None:
                 star_new[frames[i]:frames[i+1]] = star[index_sort[frames[i]:frames[i+1]]]
 
+            if lamb_new is not None:
+                lamb_new[frames[i]:frames[i+1]] = lamb[index_sort[frames[i]:frames[i+1]]]
+
             # h5py indexing elements must be in increasing order
             for _, item in enumerate(index_sort[frames[i]:frames[i+1]]):
                 self.m_image_out_port.append(self.m_image_in_port[item, ], data_dim=3)
+
+        sys.stdout.write('Running SortParangModule... [DONE]\n')
+        sys.stdout.flush()
 
         self.m_image_out_port.copy_attributes(self.m_image_in_port)
         self.m_image_out_port.add_history('SortParangModule', 'sorted by INDEX')
@@ -367,6 +387,9 @@ class SortParangModule(ProcessingModule):
 
         if parang_new is not None:
             self.m_image_out_port.add_attribute('PARANG', parang_new, static=False)
+
+        if lamb_new is not None:
+            self.m_image_out_port.add_attribute('LAMBDA', lamb_new, static=False)
 
         if star_new is not None:
             self.m_image_out_port.add_attribute('STAR_POSITION', star_new, static=False)
@@ -396,7 +419,8 @@ class AngleCalculationModule(ProcessingModule):
         data_tag : str
             Tag of the database entry for which the parallactic angles are written as attributes.
         instrument : str
-            Instrument name ('NACO', 'SPHERE/IRDIS', or 'SPHERE/IFS').
+            Instrument name ('NACO', 'SPHERE/IRDIS' or 'SPHERE/IFS'). Currently only for SPHERE/IFS
+            available.
 
         Returns
         -------
@@ -440,7 +464,7 @@ class AngleCalculationModule(ProcessingModule):
         elif self.m_instrument == 'SPHERE/IFS':
 
             # pupil offset in degrees
-            self.m_pupil_offset = -135.99 - 100.48  # According to SPHERE manual page 64 (v102)
+            self.m_pupil_offset = -135.99 + 100.48  # According to SPHERE manual page 64 (v102)
 
             # overheads in cube mode (several NDITS) in hours
             self.m_O_START = 0.3 / 3600.            # According to SPHERE manual page 90/91 (v102)
@@ -463,9 +487,6 @@ class AngleCalculationModule(ProcessingModule):
             warnings.warn('There is a mismatch between the NDIT and NFRAMES values. A frame '
                           'selection should be applied after the parallactic angles are '
                           'calculated.')
-
-        if self.m_instrument == 'SPHERE/IFS':
-            warnings.warn('AngleCalculationModule has not been tested for SPHERE/IFS data.')
 
         if self.m_instrument in ('SPHERE/IRDIS', 'SPHERE/IFS'):
 
@@ -514,6 +535,17 @@ class AngleCalculationModule(ProcessingModule):
         tmp_ra = self.m_data_in_port.get_attribute('RA')
         tmp_dec = self.m_data_in_port.get_attribute('DEC')
 
+        # Load Time information
+        exp_time = self.m_data_in_port.get_attribute('DIT')
+
+        if 'DATCOR' in self.m_data_in_port.get_all_non_static_attributes():
+            if self.m_data_in_port.get_attribute('DATCOR') is not None:
+                cor_pre = self.m_data_in_port.get_attribute('DATCOR')
+                datcor = np.zeros((len(cor_pre)))
+
+                for i, item in enumerate(cor_pre):
+                    datcor[i] = item[-9:-5]
+
         # Parse to degree depending on instrument
         if 'SPHERE' in self.m_instrument:
 
@@ -555,22 +587,28 @@ class AngleCalculationModule(ProcessingModule):
         new_angles = np.array([])
         pupil_pos_arr = np.array([])
 
-        start_time = time.time()
-
         # Calculate parallactic angles for each cube
         for i, tmp_steps in enumerate(steps):
-            progress(i, len(steps), 'Calculating parallactic angles...', start_time)
-
             t = Time(obs_dates[i].decode('utf-8'),
                      location=EarthLocation(lat=tel_lat, lon=tel_lon))
 
             sid_time = t.sidereal_time('apparent').value
 
             # Extrapolate sideral times from start time of the cube for each frame of it
-            sid_time_arr = np.linspace(sid_time+self.m_O_START,
-                                       (sid_time+self.m_O_START) +
-                                       (exptime+self.m_DIT_DELAY + self.m_ROT)*(tmp_steps-1),
-                                       tmp_steps)
+            if self.m_instrument == 'SPHERE/IFS':
+
+                dat_old = Time(obs_dates,
+                               location=EarthLocation(lat=tel_lat,
+                                                      lon=tel_lon)).sidereal_time('apparent').value
+                time = dat_old + self.m_O_START + (exp_time/3600 + self.m_DIT_DELAY + self.m_ROT)*datcor
+
+                sid_time_arr = np.array(time)
+
+            else:
+                sid_time_arr = np.linspace(sid_time+self.m_O_START,
+                                           (sid_time+self.m_O_START) +
+                                           (exptime+self.m_DIT_DELAY + self.m_ROT)*(tmp_steps-1),
+                                           tmp_steps)
 
             # Convert to degrees
             sid_time_arr_deg = sid_time_arr * 15.
@@ -589,6 +627,10 @@ class AngleCalculationModule(ProcessingModule):
 
             new_angles = np.append(new_angles, np.rad2deg(p_angle))
             pupil_pos_arr = np.append(pupil_pos_arr, np.ones(tmp_steps)*pupil_pos[i])
+
+            # break condition as SPHERE/IFS only needs one run of the loop
+            if self.m_instrument == 'SPHERE/IFS':
+                break
 
         # Correct for rotator (SPHERE) or pupil offset (NACO)
         if self.m_instrument == 'NACO':
@@ -612,6 +654,9 @@ class AngleCalculationModule(ProcessingModule):
             new_angles_corr[indices] -= 360.
 
         self.m_data_out_port.add_attribute('PARANG', new_angles_corr, static=False)
+
+        sys.stdout.write('Running AngleCalculationModule... [DONE]\n')
+        sys.stdout.flush()
 
 
 class SDIpreparationModule(ProcessingModule):
@@ -685,7 +730,7 @@ class SDIpreparationModule(ProcessingModule):
 
         start_time = time.time()
         for i in range(nimages):
-            progress(i, nimages, 'Preparing images for SDI...', start_time)
+            progress(i, nimages, 'Running SDIpreparationModule...', start_time)
 
             image = self.m_image_in_port[i, ]
 
@@ -708,6 +753,9 @@ class SDIpreparationModule(ProcessingModule):
                 im_crop = shift_image(im_crop, (-0.5, -0.5), interpolation='spline')
 
             self.m_image_out_port.append(im_crop, data_dim=3)
+
+        sys.stdout.write('Running SDIpreparationModule... [DONE]\n')
+        sys.stdout.flush()
 
         history = f'(line, continuum) = ({self.m_line_wvl}, {self.m_cnt_wvl})'
         self.m_image_out_port.copy_attributes(self.m_image_in_port)

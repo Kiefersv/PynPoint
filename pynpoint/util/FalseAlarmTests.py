@@ -128,7 +128,7 @@ def get_false_alarm_probability(image_in,
         plt.imshow(image_in,origin="lower left")
         science_aperture.plot(color="r",ax=ax)
         bg_apertures.plot(color="w",ax=ax)
-        plt.show()
+        plt.savefig('test.png')
 
     return Table(data=[(pos[0],),(pos[1],),(signal_to_noise,),(sigma,),(fap,),(signal,),(snr_sigma,)],
                  names=("pos_x","pos_y","signal_to_noise","sigma","fap","signal","snr_sigma"))

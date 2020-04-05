@@ -11,9 +11,8 @@ import os
 import math
 
 import numpy as np
-import time
 
-from typing import Tuple
+from typing import Union, Tuple, List
 from typeguard import typechecked
 from sklearn.decomposition import PCA
 from scipy.ndimage import rotate
@@ -52,7 +51,7 @@ def spec_contrast_limit(path_images: str,
                         residuals: str,
                         snr_inject: float,
                         position: Tuple[float, float],
-                        processing_type: str) -> Tuple[float, float, float, float]:
+                        processing_type: str) -> List[np.ndarray]:
 
     """
     Function for calculating the contrast limit at a specified position for a given sigma level or
@@ -92,20 +91,15 @@ def spec_contrast_limit(path_images: str,
     position : tuple(float, float)
         The separation (pix) and position angle (deg) of the fake planet.
     processing_type : str
-        Type of post processing. Currently supported:
-            Tnan: Applaying no PCA reduction and returning one wavelength avaraged image (Equivalent to Classical ADI)
-            Wnan: Applaying no PCA reduction and returing one image per Wavelengths
-            Tadi: Applaying ADI and creturning one wavelength avaraged image (Equivalent to IRDIS SDI if all wavelengths are the same)
-            Wadi: Applaying ADI and returing one image per Wavelengths
-            Tsdi: Applaying SDI and returning one wavelength avaraged image
-            Wsdi: Applaying SDI and returing one image per Wavelengths
-            Tsaa: Applaying SDI and ADI simultaniously and returning one wavelength avaraged image
-            Wsaa: Applaying SDI and ADI simultaniously and returing one image per Wavelengths
-            Tsap: Applaying SDI then ADI and returning one wavelength avaraged image
-            Wsap: Applaying SDI then ADI and returing one image per Wavelengths
-            Tasp: Applaying ADI then SDI and returning one wavelength avaraged image
-            Wasp: Applaying ADI then SDI and returing one image per Wavelengths
-        Each reduction step uses pca_number PCA components to reduce the images.
+        Type of post processing. Currently supported: 
+            Cadi: Applay ADI and combining all wavelengths 
+            Wadi: Applay ADI and returning all wavelengths 
+            Csdi: Applay SDI and combining all wavelengths 
+            Csaap: Applay SDI and ADI simultaniously and combining all wavelengths 
+            Wsap: Applay SDI then ADI and returning all wavelengths 
+            Csap: Applay SDI then ADI and combining all wavelengths 
+            Wasp: Applay ADI then SDI and returning all wavelengths 
+            Casp: Applay ADI then SDI and combining all wavelengths 
 
     Returns
     -------
@@ -117,7 +111,6 @@ def spec_contrast_limit(path_images: str,
         Contrast (mag).
     float
         False positive fraction.
-
     """
 
     images = np.load(path_images)
@@ -148,36 +141,40 @@ def spec_contrast_limit(path_images: str,
     yx_fake = polar_to_cartesian(images, position[0], position[1]-extra_rot)
 
     # Determine the noise level
-    t_noise = np.zeros_like(noise[:, 0, 0])
-
+    t_noise = np.zeros_like(noise[:,0,0])
+    
     for n, no in enumerate(noise):
         _, t_noise[n], _, _ = false_alarm(image=no,
                                           x_pos=yx_fake[1],
                                           y_pos=yx_fake[0],
                                           size=aperture,
                                           ignore=False)
-
+    
+    # Calculate the theoretical input flux without self subtraction
+    flux_in = snr_inject*t_noise
+    
     # Aperture properties
     im_center = center_subpixel(images)
-
-    # Measure the flux of the star
-    ll = noise.shape[0]
-    lam_splites = np.sort(list(set(lambdas)))
-    mag = np.zeros((len(psf)))
-    flux_in = np.zeros((ll))
-    star = np.zeros((ll))
-    
     ap_phot = CircularAperture((im_center[1], im_center[0]), aperture)
 
-    for f in range(ll):
-        mask_f = (lam_splites[f] == lambdas)
+    # Measure the flux of the star
+    lam_list = np.sort(list(set(lambdas)))
+    len_lam = len(lam_list)
+    mag = np.zeros((len(psf)))
+    star = np.zeros((len_lam))
+
+    for f in range(len_lam):
+        mask_f = (lam_list[f] == lambdas)
         psf_median = np.median(psf[mask_f], axis=0)
         phot_table = aperture_photometry(psf_median, ap_phot, method='exact')
         star[f] = phot_table['aperture_sum'][0]
 
         # Magnitude of the injected planet
-        flux_in[f] = snr_inject*t_noise[f]
-        mag[mask_f] = -2.5*math.log10(flux_in[f]/star[f])
+        if len(flux_in) != 1:
+            mag[mask_f] = -2.5*math.log10(flux_in[f]/star[f])
+        else:
+            mag[mask_f] = -2.5*math.log10(flux_in/star[f])
+
 
     # Inject the fake planet
     fake = fake_planet(images=images,
@@ -186,7 +183,7 @@ def spec_contrast_limit(path_images: str,
                        position=(position[0], position[1]),
                        magnitude=mag,
                        psf_scaling=1.)
-    
+
     # apply post processing
     _, res_rot = postprocessor(images=fake,
                                parang=-1.*parang+extra_rot,
@@ -200,11 +197,7 @@ def spec_contrast_limit(path_images: str,
                                lam=scales,
                                processing_type=processing_type)
 
-    import matplotlib.pyplot as plt
-    plt.figure()
-    plt.imshow(im_res[0])
-    plt.plot(yx_fake[1], yx_fake[0], 'rx')
-    plt.savefig(str(time.time()) + 'three_little_piggies.png')
+
 
     # Measure the flux of the fake planet
     flux_out = np.zeros((im_res.shape[0]))
@@ -214,19 +207,17 @@ def spec_contrast_limit(path_images: str,
                                            y_pos=yx_fake[0],
                                            size=aperture,
                                            ignore=False)
-        
+
     # Calculate the amount of self-subtraction
     attenuation = flux_out/flux_in
-
 
     # Calculate the detection limit
     contrast = sigma*t_noise/(attenuation*star)
 
     # The flux_out can be negative, for example if the aperture includes self-subtraction regions
-
     for c, con in enumerate(contrast):
         if con > 0.:
-            contrast[c] = -2.5*math.log10(con)
+                contrast[c] = -2.5*math.log10(con)
         else:
             contrast[c] = np.nan
 
@@ -236,7 +227,7 @@ def spec_contrast_limit(path_images: str,
     fpf_3 = np.ones_like(contrast) * fpf
 
     # Separation [pix], position antle [deg], contrast [mag], FPF
-    return pos_0, pos_1, contrast, fpf_3
+    return [pos_0, pos_1, contrast, fpf_3]
 
 
 
@@ -309,7 +300,7 @@ def filter_scaling_calc(science_time: float,
 def postprocessor(images: np.ndarray,
                   parang: np.ndarray,
                   scales: np.ndarray,
-                  pca_number: int,
+                  pca_number: Union[int, np.int64],
                   pca_sklearn: PCA = None,
                   im_shape: Tuple[int, int, int] = None,
                   indices: np.ndarray = None,
@@ -371,7 +362,7 @@ def postprocessor(images: np.ndarray,
     lam_splits = np.sort(list(set(scales)))
     tim_splits = np.sort(list(set(parang)))
     
-    if processing_type not in ['Wnan', 'Tnan', 'Wadi', 'Tadi']:
+    if processing_type not in ['Oadi']:
         if im_shape is not None:
             swup = np.zeros((im_shape[0], im_shape[1]*im_shape[2]))
             if indices is not None:

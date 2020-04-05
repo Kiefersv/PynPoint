@@ -225,11 +225,12 @@ def fake_planet(images: np.ndarray,
 
     flux_ratio = 10. ** (-magnitude / 2.5)
     
-    if magnitude is np.ndarray:
+    # This should be a check if magnitud is float
+    if isinstance(flux_ratio, float):
+        psf = psf*psf_scaling*flux_ratio
+    else:
         for i, fl in enumerate(flux_ratio):
             psf[i] = psf[i]*fl
-    else:
-        psf = psf*psf_scaling*flux_ratio
 
     x_shift = sep*np.cos(ang)
     y_shift = sep*np.sin(ang)

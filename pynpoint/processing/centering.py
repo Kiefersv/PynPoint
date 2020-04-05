@@ -2,6 +2,7 @@
 Pipeline modules for aligning and centering of the star.
 """
 
+import sys
 import time
 import math
 import warnings
@@ -698,13 +699,14 @@ class ShiftImagesModule(ProcessingModule):
         self.m_image_out_port.close_port()
 
 
+
 class WaffleCenteringModule(ProcessingModule):
     """
     Pipeline module for centering of SPHERE data obtained with a Lyot coronagraph for which center
     frames with satellite spots are available.
     """
 
-    __author__ = 'Alexander Bohn'
+    __author__ = 'Sven Kiefer, Alexander Bohn'
 
     @typechecked
     def __init__(self,
@@ -712,10 +714,12 @@ class WaffleCenteringModule(ProcessingModule):
                  image_in_tag: str,
                  center_in_tag: str,
                  image_out_tag: str,
+                 radius: float = 45,
+                 l_min: float = 1,
+                 pattern: str = None,
                  size: float = None,
                  center: Tuple[float, float] = None,
-                 radius: float = 45.,
-                 pattern: str = 'x',
+                 angle: float = 0,
                  sigma: float = 0.06,
                  dither: bool = False) -> None:
         """
@@ -730,15 +734,17 @@ class WaffleCenteringModule(ProcessingModule):
         image_out_tag : str
             Tag of the database entry with the centered images that are written as output. Should
             be different from *image_in_tag*.
+        r_min : float
+            distance from the center of the centering spot in the image with the lowest wavelength
+        l_min : float
+            lowest wavelength of all images (an approximate value is often sufficiant)
         size : float, None
             Image size (arcsec) for both dimensions. Original image size is used if set to None.
         center : tuple(float, float), None
             Approximate position (x0, y0) of the coronagraph. The center of the image is used if
             set to None.
-        radius : float
-            Approximate separation (pix) of the waffle spots from the star.
-        pattern : str
-            Waffle pattern that is used ('x' or '+').
+        angle : float
+            angle in degree of the offset from the + constelation of the waffle spots (closckwise)
         sigma : float
             Standard deviation (arcsec) of the Gaussian kernel that is used for the unsharp
             masking.
@@ -757,10 +763,12 @@ class WaffleCenteringModule(ProcessingModule):
         self.m_center_in_port = self.add_input_port(center_in_tag)
         self.m_image_out_port = self.add_output_port(image_out_tag)
 
+        self.m_r_min = radius
+        self.m_l_min = l_min
+        self.m_pattern = pattern
         self.m_size = size
         self.m_center = center
-        self.m_radius = radius
-        self.m_pattern = pattern
+        self.m_angle = angle
         self.m_sigma = sigma
         self.m_dither = dither
 
@@ -798,6 +806,11 @@ class WaffleCenteringModule(ProcessingModule):
 
         center_frame, self.m_center = _get_center(self.m_center)
 
+        # Setting angle via pattern (used for backwards compability)
+        if self.m_pattern is not None:
+            if self.m_pattern == 'x':
+                self.m_angle = 45.
+
         if im_shape[-2:] != center_shape[-2:]:
             raise ValueError('Science and center images should have the same shape.')
 
@@ -826,16 +839,20 @@ class WaffleCenteringModule(ProcessingModule):
         x_pos = np.zeros(4)
         y_pos = np.zeros(4)
 
+
+        lam = self.m_image_in_port.get_attribute('LAMBDA')
+        
+        # check if lam are assigned, assigns nulling varible if None
+        if lam is None:
+            lam = [self.m_l_min] 
+
         # Loop for 4 waffle spots
         for i in range(4):
             # Approximate positions of waffle spots
-            if self.m_pattern == 'x':
-                x_0 = np.floor(self.m_center[0] + self.m_radius * np.cos(np.pi / 4. * (2 * i + 1)))
-                y_0 = np.floor(self.m_center[1] + self.m_radius * np.sin(np.pi / 4. * (2 * i + 1)))
+            radius = self.m_r_min * lam[0] / self.m_l_min
+            x_0 = np.floor(self.m_center[0] + radius * np.cos(self.m_angle*np.pi/180 + np.pi / 4. * (2 * i)))
+            y_0 = np.floor(self.m_center[1] + radius * np.sin(self.m_angle*np.pi/180 + np.pi / 4. * (2 * i)))
 
-            elif self.m_pattern == '+':
-                x_0 = np.floor(self.m_center[0] + self.m_radius * np.cos(np.pi / 4. * (2 * i)))
-                y_0 = np.floor(self.m_center[1] + self.m_radius * np.sin(np.pi / 4. * (2 * i)))
 
             tmp_center_frame = crop_image(image=center_frame_unsharp,
                                           center=(int(y_0), int(x_0)),
@@ -924,7 +941,7 @@ class WaffleCenteringModule(ProcessingModule):
 
         start_time = time.time()
         for i in range(nimages):
-            progress(i, nimages, 'Centering the images...', start_time)
+            progress(i, nimages, 'Running WaffleCenteringModule...', start_time)
 
             image = self.m_image_in_port[i, ]
 
@@ -952,10 +969,39 @@ class WaffleCenteringModule(ProcessingModule):
                 self.m_image_out_port.append(im_crop, data_dim=3)
             else:
                 self.m_image_out_port.append(im_shift, data_dim=3)
+                
+                
+#        from matplotlib import pyplot as plt
+#        plt.imshow(np.log(np.abs(im_shift)), origin="lower")
+##            plt.plot(x_0, y_0, "rx")
+##            plt.plot(x_center, y_center, "wx")
+#        plt.show()
+#        
+##            plt.imshow(np.log(np.abs(im_crop)), origin="lower")
+##            plt.plot(x_pos, y_pos, "wx")
+##            plt.plot(x_center, y_center, "wx")
+##            plt.show()
+#        
+#        assert False
+                
+                
+        
+        
+        
+        
+        
+        
+        
+        
+        
 
-        print(f'Center [x, y] = [{x_center}, {y_center}]')
+        sys.stdout.write('Running WaffleCenteringModule... [DONE]\n')
+        sys.stdout.write('Center [x, y] = ['+str(x_center)+', '+str(y_center)+']\n')
+        sys.stdout.flush()
 
         history = f'[x, y] = [{round(x_center, 2)}, {round(y_center, 2)}]'
         self.m_image_out_port.copy_attributes(self.m_image_in_port)
         self.m_image_out_port.add_history('WaffleCenteringModule', history)
         self.m_image_out_port.close_port()
+        
+        

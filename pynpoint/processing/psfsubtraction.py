@@ -282,7 +282,7 @@ class PcaPsfSubtractionModule(ProcessingModule):
 
             # 1.) derotated residuals
             if self.m_res_arr_out_ports is not None:
-                self.m_res_arr_out_ports[pca_number].set_all(res_rot)
+                self.m_res_arr_out_ports[pca_number].set_all(residuals)
                 self.m_res_arr_out_ports[pca_number].copy_attributes(self.m_star_in_port)
                 self.m_res_arr_out_ports[pca_number].add_history('PcaPsfSubtractionModule', hist)
 

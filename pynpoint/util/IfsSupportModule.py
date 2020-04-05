@@ -8,6 +8,8 @@ Pypeline support funciton to support IFS handling
 
 import sys
 
+import numpy as np
+
 from typing import List, Dict
 from uncertainties import ufloat
 
@@ -111,7 +113,7 @@ def IfsSupportModule(image_in_tag: List[str],
 
     #collecting splitting arguments
     lams = puplunu.get_attribute('pre_load', split_argument, static=False)
-    lams = list(set(lams))
+    lams = np.sort(list(set(lams)))
     lams_str = [str(i) for i in lams]
     lambdas = ['_' + split_argument + i for i in lams_str]
 
@@ -276,7 +278,7 @@ def IfsSupportModule(image_in_tag: List[str],
                 modi['image_in_tag'] = mod_args[j]['image_in_tag'] + lamj
                 modi['image_out_tag'] = mod_args[j]['image_out_tag'] + lamj
                 if 'sigma' not in modi.keys():
-                    modi['sigma'] = ReplaceBadPixelsModule.__defaults__[0]
+                    modi['sigma'] = None
                 if 'size' not in modi.keys():
                     modi['size'] = 2
                 if 'replace' not in modi.keys():
@@ -432,7 +434,8 @@ def IfsSupportModule(image_in_tag: List[str],
                 modi['name_in'] = mod_args[j]['name_in'] + lamj
                 modi['image_in_tag'] = mod_args[j]['image_in_tag'] + lamj
                 modi['image_out_tag'] = mod_args[j]['image_out_tag'] + lamj
-                if 'index_out_tag' not in modi.keys(): modi['index_out_tag'] = None
+                if 'index_out_tag' not in modi.keys(): 
+                    modi['index_out_tag'] = None
                 if modi['index_out_tag'] is not None:
                     modi['index_out_tag'] = mod_args[j]['index_out_tag'] + lamj
                 if 'image_size' not in modi.keys():
@@ -741,14 +744,14 @@ def IfsSupportModule(image_in_tag: List[str],
     """
 
     for imgs in image_out_tag:
-        
+
         # Recombine all wavelengths
         names = [imgs + lum for lum in lambdas]
         mods = CombineTagsModule(name_in='WEOUT_' + imgs,
                                  image_in_tags=names,
                                  image_out_tag='WEOUT_' + imgs)
         pipe.add_module(mods)
-        
+
         # Add fits writing modules if printing is wished
         if print_out:
             modk = FitsWritingModule(file_name='WEOUT_' + imgs + '.fits',

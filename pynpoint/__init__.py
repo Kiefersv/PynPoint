@@ -77,6 +77,10 @@ from pynpoint.processing.timedenoising import CwtWaveletConfiguration, \
                                               WaveletTimeDenoisingModule, \
                                               TimeNormalizationModule
 
+from pynpoint.util.IfsSupportModule import IfsSupportModule
+from pynpoint.processing.sdicontrast import SdiSimplexMinimizationModule
+from pynpoint.processing.characteriz import SpectralCharModule
+
 from pynpoint.readwrite.fitsreading import FitsReadingModule
 
 from pynpoint.readwrite.fitswriting import FitsWritingModule
