@@ -154,5 +154,16 @@ def postprocessor(images: np.ndarray,
                                                                pca_sklearn=pca_sklearn,
                                                                im_shape=im_shape,
                                                                indices=indices)
+                                                               
+    elif processing_type == 'CODI':
+        im_scaled = sdi_scaling(images[:, i, :, :], scales)
+
+        res_raw, res_rot = pca_psf_subtraction(images=im_scaled*mask,
+                                               angles=angles,
+                                               scales=scales,
+                                               pca_number=pca_number[0],
+                                               pca_sklearn=pca_sklearn,
+                                               im_shape=im_shape,
+                                               indices=indices)
 
     return res_raw, res_rot
