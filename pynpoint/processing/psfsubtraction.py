@@ -238,7 +238,7 @@ class PcaPsfSubtractionModule(ProcessingModule):
             pca_secon = self.m_components[1]
 
         if self.m_ifs_data:
-            if self.m_processing_type in ['ADI', 'SDI']:
+            if self.m_processing_type in ['ADI', 'SDI', 'CODI']:
                 res_shape = (len(pca_first), len(wavelength), im_shape[-2], im_shape[-1])
 
             elif self.m_processing_type in ['SDI+ADI', 'ADI+SDI']:
